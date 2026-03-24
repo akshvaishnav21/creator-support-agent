@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import ApiKeyGate from "@/components/ApiKeyGate";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-export default function ChatInterface() {
+function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,16 +22,18 @@ export default function ChatInterface() {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
 
+    const apiKey = localStorage.getItem("creatoriq_gemini_key");
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({ message: userMessage, apiKey }),
       });
       const data = await res.json();
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply },
+        { role: "assistant", content: data.reply ?? data.error ?? "No response." },
       ]);
     } catch {
       setMessages((prev) => [
@@ -43,10 +46,8 @@ export default function ChatInterface() {
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-center mb-4">
-        Creator Support Agent
-      </h1>
+    <div className="flex flex-col h-[calc(100vh-49px)] max-w-2xl mx-auto p-4">
+      <h1 className="text-2xl font-bold text-center mb-4">Creator Chat</h1>
 
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
         {messages.length === 0 && (
@@ -58,9 +59,7 @@ export default function ChatInterface() {
           <div
             key={i}
             className={`p-3 rounded-lg max-w-prose ${
-              msg.role === "user"
-                ? "bg-blue-100 ml-auto"
-                : "bg-gray-100"
+              msg.role === "user" ? "bg-blue-100 ml-auto" : "bg-gray-100"
             }`}
           >
             {msg.content}
@@ -88,5 +87,13 @@ export default function ChatInterface() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function ChatInterface() {
+  return (
+    <ApiKeyGate>
+      <Chat />
+    </ApiKeyGate>
   );
 }
