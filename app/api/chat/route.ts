@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: "gemini-2.5-flash-preview-04-17",
+    model: "gemini-3-flash-preview",
     systemInstruction:
       "You are a helpful support agent for YouTube creators. Help them with content strategy, analytics, audience growth, monetization, and any other creator-related questions.",
   });
