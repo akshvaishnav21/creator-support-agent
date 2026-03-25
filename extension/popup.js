@@ -1,7 +1,7 @@
 // CreatorIQ Popup Script
 
 // Update this URL when deployed to Vercel
-const APP_URL = "http://localhost:3000";
+const APP_URL = "https://creator-support-agent-peach.vercel.app";
 
 // DOM refs
 const apiKeyInput = document.getElementById("api-key-input");
