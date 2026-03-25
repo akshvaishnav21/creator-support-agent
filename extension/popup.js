@@ -172,33 +172,14 @@ function setupToolButtons(videoUrl, tabId) {
   const encoded = encodeURIComponent(videoUrl);
 
   document.getElementById("btn-sponsorship").addEventListener("click", () => {
-    // Try to pass captions and comments directly if available
-    let url = `${APP_URL}/sponsorship?videoUrl=${encoded}`;
-    if (collectedData?.captions) {
-      url += `&captions=${encodeURIComponent(collectedData.captions.slice(0, 8000))}`;
-    }
-    if (collectedData?.comments) {
-      url += `&comments=${encodeURIComponent(collectedData.comments.slice(0, 8000))}`;
-    }
-    chrome.tabs.create({ url });
+    chrome.tabs.create({ url: `${APP_URL}/sponsorship?videoUrl=${encoded}` });
   });
 
   document.getElementById("btn-comments").addEventListener("click", () => {
-    let url = `${APP_URL}/comments?videoUrl=${encoded}`;
-    if (collectedData?.comments) {
-      url += `&comments=${encodeURIComponent(collectedData.comments.slice(0, 8000))}`;
-    }
-    chrome.tabs.create({ url });
+    chrome.tabs.create({ url: `${APP_URL}/comments?videoUrl=${encoded}` });
   });
 
   document.getElementById("btn-titles").addEventListener("click", () => {
-    let url = `${APP_URL}/titles?videoUrl=${encoded}`;
-    if (collectedData?.videoTitle) {
-      url += `&concept=${encodeURIComponent(collectedData.videoTitle)}`;
-    }
-    if (collectedData?.captions) {
-      url += `&captions=${encodeURIComponent(collectedData.captions.slice(0, 8000))}`;
-    }
-    chrome.tabs.create({ url });
+    chrome.tabs.create({ url: `${APP_URL}/titles?videoUrl=${encoded}` });
   });
 }
