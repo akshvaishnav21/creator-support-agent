@@ -39,7 +39,6 @@ Analyze the provided creator content (transcript and/or audience comments) and r
     "low": "conservative CPM in USD as a plain number e.g. 25",
     "high": "optimistic CPM in USD for a well-negotiated deal as a plain number e.g. 55"
   },
-  "outreachEmailTemplate": "A complete cold outreach email as a single string with \\n for line breaks. Line 1 must be the subject prefixed with 'Subject:'. Then a blank line. Then the email body. Use [Creator Name], [Channel Name], [Subscriber Count] as placeholders. Reference the #1 brand from specificBrandSuggestions by name. Under 200 words. Friendly, direct, no fluff.",
   "brandsToAvoid": [
     "2-3 strings, each formatted as: 'BrandName or Category — one sentence explaining why this would harm audience trust or be a poor fit'"
   ],
@@ -52,6 +51,7 @@ Rules:
 - Return exactly 5 items in specificBrandSuggestions.
 - Return exactly 2-3 items in brandsToAvoid.
 - estimatedCpmRange.low and .high must be plain numbers, no dollar sign, no quotes around the number.
+- Do NOT include an outreachEmailTemplate field.
 - Return ONLY the JSON object. No markdown fences, no commentary before or after.`;
 
 function buildPrompt(transcript?: string, comments?: string): string {

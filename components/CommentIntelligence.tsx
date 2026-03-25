@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
-import type { CommentAnalysis } from "@/lib/types";
+import YouTubeUrlInput from "@/components/YouTubeUrlInput";
+import type { CommentAnalysis, YouTubeVideoData } from "@/lib/types";
 
 function SentimentBar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
@@ -128,6 +129,8 @@ export default function CommentIntelligence() {
   const [analysis, setAnalysis] = useState<CommentAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const videoUrl = searchParams.get("videoUrl") ?? undefined;
+
   useEffect(() => {
     const c = searchParams.get("comments");
     if (c) setComments(decodeURIComponent(c));
@@ -167,6 +170,17 @@ export default function CommentIntelligence() {
           Paste your audience comments to uncover topic clusters, sentiment trends,
           and future video ideas hidden in what your viewers are saying.
         </p>
+
+        <YouTubeUrlInput
+          onFetched={(data: YouTubeVideoData) => { if (data.comments) setComments(data.comments); }}
+          autoFetchUrl={videoUrl}
+        />
+
+        <div className="flex items-center gap-3 my-1">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400">or paste manually</span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

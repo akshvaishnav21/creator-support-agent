@@ -36,7 +36,7 @@ export interface SponsorshipAnalysis {
   topSponsorshipCategories: SponsorshipCategory[];
   specificBrandSuggestions: BrandSuggestion[];
   estimatedCpmRange: { low: number; high: number };
-  outreachEmailTemplate: string;
+  outreachEmailTemplate?: string;
   brandsToAvoid: string[];
   dealTypeRecommendation: string;
   summaryInsight: string;
@@ -72,6 +72,20 @@ export interface CommentAnalysis {
   topComplaints: Complaint[];
   appreciationHighlights: string[];
   summaryInsight: string;
+}
+
+// YouTube API fetch result
+export interface YouTubeVideoData {
+  videoId: string;
+  title: string;
+  description: string;
+  channelTitle: string;
+  channelId: string;
+  transcript: string;
+  comments: string;
+  recentVideoTitles: string[];
+  viewCount?: string;
+  likeCount?: string;
 }
 
 // Hook & Title Factory

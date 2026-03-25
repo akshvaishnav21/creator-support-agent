@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
-import type { SponsorshipAnalysis, BrandContactResult } from "@/lib/types";
+import YouTubeUrlInput from "@/components/YouTubeUrlInput";
+import type { SponsorshipAnalysis, BrandContactResult, YouTubeVideoData } from "@/lib/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -78,46 +79,93 @@ function buildReportText(analysis: SponsorshipAnalysis): string {
     ...analysis.brandsToAvoid.map((b) => `- ${b}`),
     "",
     "## Top Sponsorship Categories",
-    ...analysis.topSponsorshipCategories.map(
+    ...(analysis.topSponsorshipCategories ?? []).map(
       (c) => `### ${c.category} (${c.fitScore}/10)\n${c.rationale}`
     ),
     "",
     "## Brand Suggestions",
-    ...analysis.specificBrandSuggestions.map(
+    ...(analysis.specificBrandSuggestions ?? []).map(
       (b) =>
         `### ${b.brandName} (${b.category})\n${b.fitReason}\n\nPitch: ${b.pitchAngle}`
     ),
     "",
-    "## Outreach Email Template",
-    analysis.outreachEmailTemplate,
   ];
   return lines.join("\n");
 }
 
-// ─── Outreach Email Card ────────────────────────────────────────────────────
+// ─── Inline Email Panel ─────────────────────────────────────────────────────
 
-function OutreachEmailCard({ template }: { template: string }) {
+function InlineEmailPanel({
+  brandName,
+  pitchAngle,
+  audienceProfile,
+  contentTone,
+  apiKey,
+}: {
+  brandName: string;
+  pitchAngle: string;
+  audienceProfile: SponsorshipAnalysis["audienceProfile"];
+  contentTone: SponsorshipAnalysis["contentTone"];
+  apiKey: string;
+}) {
+  const [email, setEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/generate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, brandName, pitchAngle, audienceProfile, contentTone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Email generation failed");
+      setEmail(data.email);
+      setOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!email) {
+    return (
+      <div className="pt-2 border-t border-gray-200">
+        {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50 transition-colors"
+        >
+          {loading ? "Generating..." : "✉️ Generate outreach email"}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
+    <div className="pt-2 border-t border-gray-200">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center justify-between w-full text-left"
       >
-        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-          <span>✉️</span> Outreach Email Template
-        </h2>
-        <span className="text-gray-400 text-sm">{open ? "▲ Collapse" : "▼ Expand"}</span>
+        <span className="text-xs font-medium text-gray-700">✉️ Outreach Email</span>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
       </button>
       {open && (
-        <div className="mt-4 relative">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 pr-10">
+        <div className="mt-2 relative">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 pr-8">
             <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
-              {template}
+              {email}
             </pre>
           </div>
-          <div className="absolute top-2 right-2">
-            <CopyButton text={template} label="Copy email" />
+          <div className="absolute top-1.5 right-1.5">
+            <CopyButton text={email} label="Copy email" />
           </div>
         </div>
       )}
@@ -131,10 +179,12 @@ function Results({
   analysis,
   brandContacts,
   contactsLoading,
+  apiKey,
 }: {
   analysis: SponsorshipAnalysis;
   brandContacts: BrandContactResult[] | null;
   contactsLoading: boolean;
+  apiKey: string;
 }) {
   const [avoidsOpen, setAvoidsOpen] = useState(false);
   const reportText = buildReportText(analysis);
@@ -169,7 +219,7 @@ function Results({
           </div>
           <p className="text-xs text-gray-500 mb-2">Primary Interests</p>
           <div className="flex flex-wrap gap-1.5">
-            {analysis.audienceProfile.primaryInterests.map((i) => (
+            {(analysis.audienceProfile.primaryInterests ?? []).map((i) => (
               <Pill key={i} label={i} color="blue" />
             ))}
           </div>
@@ -185,7 +235,7 @@ function Results({
           </div>
           <p className="text-xs text-gray-500 mb-2">Style Keywords</p>
           <div className="flex flex-wrap gap-1.5 mb-4">
-            {analysis.contentTone.styleKeywords.map((k) => (
+            {(analysis.contentTone.styleKeywords ?? []).map((k) => (
               <Pill key={k} label={k} color="gray" />
             ))}
           </div>
@@ -222,12 +272,12 @@ function Results({
           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
           <span className="text-red-400">🚫</span>
-          <span>Brands to Avoid ({analysis.brandsToAvoid.length})</span>
+          <span>Brands to Avoid ({(analysis.brandsToAvoid ?? []).length})</span>
           <span className="text-xs">{avoidsOpen ? "▲" : "▼"}</span>
         </button>
         {avoidsOpen && (
           <ul className="mt-3 space-y-1.5">
-            {analysis.brandsToAvoid.map((b, i) => (
+            {(analysis.brandsToAvoid ?? []).map((b, i) => (
               <li key={i} className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                 {b}
               </li>
@@ -242,7 +292,7 @@ function Results({
           <span>🏷️</span> Top Sponsorship Categories
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {analysis.topSponsorshipCategories.map((cat, i) => {
+          {(analysis.topSponsorshipCategories ?? []).map((cat, i) => {
             const { bar, badge } = scoreColor(cat.fitScore);
             return (
               <div key={i} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
@@ -271,7 +321,7 @@ function Results({
           <span>🤝</span> Brand Suggestions
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {analysis.specificBrandSuggestions.map((brand, i) => {
+          {(analysis.specificBrandSuggestions ?? []).map((brand, i) => {
             const contact = brandContacts?.find(
               (c) => c.brandName === brand.brandName
             );
@@ -318,14 +368,20 @@ function Results({
                     <p className="text-xs text-gray-400">No contact page found</p>
                   ) : null}
                 </div>
+
+                {/* On-demand outreach email */}
+                <InlineEmailPanel
+                  brandName={brand.brandName}
+                  pitchAngle={brand.pitchAngle}
+                  audienceProfile={analysis.audienceProfile}
+                  contentTone={analysis.contentTone}
+                  apiKey={apiKey}
+                />
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Outreach Email */}
-      <OutreachEmailCard template={analysis.outreachEmailTemplate} />
     </div>
   );
 }
@@ -341,6 +397,9 @@ export default function SponsorshipAnalyzer() {
   const [error, setError] = useState<string | null>(null);
   const [brandContacts, setBrandContacts] = useState<BrandContactResult[] | null>(null);
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [apiKey, setApiKey] = useState<string>("");
+
+  const videoUrl = searchParams.get("videoUrl") ?? undefined;
 
   useEffect(() => {
     const t = searchParams.get("transcript");
@@ -348,6 +407,11 @@ export default function SponsorshipAnalyzer() {
     if (t) setTranscript(decodeURIComponent(t));
     if (c) setComments(decodeURIComponent(c));
   }, [searchParams]);
+
+  function handleYtFetch(data: YouTubeVideoData) {
+    if (data.transcript) setTranscript(data.transcript);
+    if (data.comments) setComments(data.comments);
+  }
 
   async function triggerBrandSearch(apiKey: string, brands: string[]) {
     setContactsLoading(true);
@@ -378,18 +442,19 @@ export default function SponsorshipAnalyzer() {
     setAnalysis(null);
     setBrandContacts(null);
 
-    const apiKey = localStorage.getItem("creatoriq_gemini_key");
+    const storedKey = localStorage.getItem("creatoriq_gemini_key") ?? "";
+    setApiKey(storedKey);
 
     try {
       const res = await fetch("/api/analyze-sponsorship", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, transcript, comments }),
+        body: JSON.stringify({ apiKey: storedKey, transcript, comments }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Analysis failed");
       setAnalysis(data.analysis);
-      triggerBrandSearch(apiKey!, data.analysis.specificBrandSuggestions.map((b: { brandName: string }) => b.brandName));
+      triggerBrandSearch(storedKey, data.analysis.specificBrandSuggestions.map((b: { brandName: string }) => b.brandName));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -405,6 +470,14 @@ export default function SponsorshipAnalyzer() {
           Paste a video transcript and/or audience comments to find the best-fit
           brand sponsorships for your channel.
         </p>
+
+        <YouTubeUrlInput onFetched={handleYtFetch} autoFetchUrl={videoUrl} />
+
+        <div className="flex items-center gap-3 my-1">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400">or fill in manually</span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -457,6 +530,7 @@ export default function SponsorshipAnalyzer() {
             analysis={analysis}
             brandContacts={brandContacts}
             contactsLoading={contactsLoading}
+            apiKey={apiKey}
           />
         )}
       </div>

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
-import type { TitleAnalysis, PsychPrinciple } from "@/lib/types";
+import YouTubeUrlInput from "@/components/YouTubeUrlInput";
+import type { TitleAnalysis, PsychPrinciple, YouTubeVideoData } from "@/lib/types";
 
 const PRINCIPLE_LABELS: Record<PsychPrinciple, string> = {
   curiosity_gap: "Curiosity Gap",
@@ -94,6 +95,8 @@ export default function TitleFactory() {
   const [concept, setConcept] = useState("");
   const [transcript, setTranscript] = useState("");
 
+  const videoUrl = searchParams.get("videoUrl") ?? undefined;
+
   useEffect(() => {
     const c = searchParams.get("concept");
     const t = searchParams.get("transcript");
@@ -138,6 +141,20 @@ export default function TitleFactory() {
           Generate 15 high-converting title and hook variations for your video,
           grouped by psychological principle.
         </p>
+
+        <YouTubeUrlInput
+          onFetched={(data: YouTubeVideoData) => {
+            if (data.title) setConcept(data.title);
+            if (data.transcript) setTranscript(data.transcript);
+          }}
+          autoFetchUrl={videoUrl}
+        />
+
+        <div className="flex items-center gap-3 my-1">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="text-xs text-gray-400">or fill in manually</span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

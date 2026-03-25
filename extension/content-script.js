@@ -1,13 +1,10 @@
 // CreatorIQ Content Script
-// Runs on youtube.com/watch* pages
+// Runs on youtube.com/watch* pages in the MAIN world (has access to page globals)
 // Extracts transcript and comments, exposes via window.__creatoriq
 
 (function () {
   "use strict";
 
-  /**
-   * Get the current video title from the page.
-   */
   function getVideoTitle() {
     const el =
       document.querySelector("h1.ytd-watch-metadata yt-formatted-string") ||
@@ -17,16 +14,40 @@
   }
 
   /**
-   * Extract transcript text from the transcript panel if it is open.
-   * Returns empty string if the panel is not open or has no content.
+   * Fetch transcript text via YouTube's player response data.
+   * This is reliable and does not require the transcript panel to be open.
+   * Falls back to DOM extraction if the player response is unavailable.
    */
-  function extractTranscript() {
+  async function fetchTranscript() {
+    try {
+      const tracks =
+        window.ytInitialPlayerResponse?.captions
+          ?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (tracks?.length) {
+        const track =
+          tracks.find((t) => t.languageCode?.startsWith("en")) || tracks[0];
+        if (track?.baseUrl) {
+          const res = await fetch(track.baseUrl + "&fmt=json3");
+          const json = await res.json();
+          const text = (json.events || [])
+            .filter((e) => e.segs)
+            .map((e) => e.segs.map((s) => s.utf8 ?? "").join(""))
+            .filter(Boolean)
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+          if (text) return text;
+        }
+      }
+    } catch {
+      // fall through to DOM fallback
+    }
+
+    // Fallback: DOM extraction (only works if transcript panel is already open)
     const segments = document.querySelectorAll(
       "ytd-transcript-segment-renderer .segment-text, " +
-      "ytd-transcript-segment-renderer yt-formatted-string"
+        "ytd-transcript-segment-renderer yt-formatted-string"
     );
-    if (segments.length === 0) return "";
-
     return Array.from(segments)
       .map((el) => el.textContent.trim())
       .filter(Boolean)
@@ -34,16 +55,14 @@
   }
 
   /**
-   * Extract visible comments from the page.
-   * Returns up to 100 comments as a newline-joined string.
+   * Extract visible comments from the page (up to 100).
    */
   function extractComments() {
     const commentEls = document.querySelectorAll(
       "ytd-comment-renderer #content-text, " +
-      "ytd-comment-view-model #content-text"
+        "ytd-comment-view-model #content-text"
     );
     if (commentEls.length === 0) return "";
-
     return Array.from(commentEls)
       .slice(0, 100)
       .map((el) => el.textContent.trim())
@@ -52,49 +71,38 @@
   }
 
   /**
-   * Try to open the transcript panel by clicking the "More actions" button
-   * then the "Show transcript" option. Non-destructive — fails silently.
+   * If no comments are in the DOM yet, scroll to the comments section briefly
+   * to trigger YouTube's lazy loading, then restore the original scroll position.
    */
-  async function tryOpenTranscript() {
-    // Click "..." (more actions) button near the video
-    const moreBtn =
-      document.querySelector("ytd-menu-renderer.ytd-watch-metadata button[aria-label]") ||
-      document.querySelector("#above-the-fold ytd-menu-renderer button");
-    if (!moreBtn) return;
-
-    moreBtn.click();
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Look for "Show transcript" option in the popup menu
-    const menuItems = document.querySelectorAll(
-      "ytd-menu-service-item-renderer, tp-yt-paper-item"
-    );
-    for (const item of menuItems) {
-      if (item.textContent.toLowerCase().includes("transcript")) {
-        item.click();
-        await new Promise((r) => setTimeout(r, 1000));
-        break;
+  async function ensureCommentsLoaded() {
+    const hasComments =
+      document.querySelectorAll(
+        "ytd-comment-renderer #content-text, ytd-comment-view-model #content-text"
+      ).length > 0;
+    if (!hasComments) {
+      const commentsEl = document.querySelector("ytd-comments");
+      if (commentsEl) {
+        const saved = window.scrollY;
+        commentsEl.scrollIntoView({ behavior: "instant" });
+        await new Promise((r) => setTimeout(r, 1500));
+        window.scrollTo({ top: saved, behavior: "instant" });
+        await new Promise((r) => setTimeout(r, 200));
       }
     }
   }
 
   /**
-   * Main data collection function. Tries to open transcript first,
-   * then collects all available data.
+   * Main data collection. Ensures comments are loaded, then collects everything.
    */
   async function collectData() {
-    if (extractTranscript() === "") {
-      await tryOpenTranscript();
-    }
-
+    await ensureCommentsLoaded();
     const data = {
       videoTitle: getVideoTitle(),
-      transcript: extractTranscript(),
+      transcript: await fetchTranscript(),
       comments: extractComments(),
       url: window.location.href,
       collectedAt: new Date().toISOString(),
     };
-
     window.__creatoriq = data;
     return data;
   }
@@ -107,7 +115,7 @@
   new MutationObserver(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
-      setTimeout(collectData, 2000); // wait for new page content
+      setTimeout(collectData, 2000);
     }
   }).observe(document, { subtree: true, childList: true });
 
