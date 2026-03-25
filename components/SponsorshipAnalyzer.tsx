@@ -5,126 +5,135 @@ import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
 import type { SponsorshipAnalysis } from "@/lib/types";
 
+const SCORE_COLORS = [
+  { min: 8, bar: "bg-green-500", badge: "bg-green-100 text-green-800" },
+  { min: 6, bar: "bg-blue-500",  badge: "bg-blue-100 text-blue-800"  },
+  { min: 4, bar: "bg-yellow-400",badge: "bg-yellow-100 text-yellow-800"},
+  { min: 0, bar: "bg-gray-400",  badge: "bg-gray-100 text-gray-700"  },
+];
+
+function scoreColor(score: number) {
+  return SCORE_COLORS.find((c) => score >= c.min)!;
+}
+
 function ScoreBar({ score }: { score: number }) {
+  const { bar } = scoreColor(score);
   return (
-    <div className="bg-gray-200 rounded h-2 w-full">
-      <div
-        className="bg-green-400 h-2 rounded"
-        style={{ width: `${score * 10}%` }}
-      />
+    <div className="bg-gray-200 rounded-full h-2 w-full">
+      <div className={`${bar} h-2 rounded-full transition-all`} style={{ width: `${score * 10}%` }} />
     </div>
   );
 }
 
 function Pill({ label, color = "blue" }: { label: string; color?: "blue" | "gray" }) {
-  const cls =
-    color === "blue"
-      ? "bg-blue-100 text-blue-800"
-      : "bg-gray-100 text-gray-700";
+  const cls = color === "blue" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-700";
+  return <span className={`text-xs rounded-full px-2 py-0.5 ${cls}`}>{label}</span>;
+}
+
+function StatCell({ label, value }: { label: string; value: string }) {
   return (
-    <span className={`text-xs rounded-full px-2 py-0.5 ${cls}`}>{label}</span>
+    <div className="bg-white rounded-lg border border-gray-100 p-3">
+      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-gray-900 capitalize">{value}</p>
+    </div>
   );
 }
 
 function Results({ analysis }: { analysis: SponsorshipAnalysis }) {
   return (
-    <div className="space-y-6 mt-6">
-      {/* Executive Summary */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h2 className="font-semibold text-blue-900 mb-2">Executive Summary</h2>
-        <p className="text-blue-800 text-sm">{analysis.summaryInsight}</p>
+    <div className="space-y-6 mt-8">
+      {/* Executive Summary — full-width banner */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl p-5 text-white">
+        <p className="text-xs uppercase tracking-widest text-blue-200 mb-1 font-medium">Executive Summary</p>
+        <p className="text-sm leading-relaxed">{analysis.summaryInsight}</p>
       </div>
 
-      {/* Audience Profile */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="font-semibold text-gray-900 mb-3">Audience Profile</h2>
-        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-          <div>
-            <span className="text-gray-500">Age Range</span>
-            <p className="font-medium">{analysis.audienceProfile.ageRange}</p>
+      {/* Audience Profile + Content Tone — side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Audience Profile */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="text-base">👥</span> Audience Profile
+          </h2>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <StatCell label="Age Range" value={analysis.audienceProfile.ageRange} />
+            <StatCell label="Gender" value={analysis.audienceProfile.likelyGender} />
+            <StatCell label="Income Signal" value={analysis.audienceProfile.incomeSignal} />
+            <StatCell label="Engagement" value={analysis.audienceProfile.engagementStyle} />
           </div>
-          <div>
-            <span className="text-gray-500">Gender</span>
-            <p className="font-medium">{analysis.audienceProfile.likelyGender}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Income Signal</span>
-            <p className="font-medium capitalize">{analysis.audienceProfile.incomeSignal}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Engagement</span>
-            <p className="font-medium">{analysis.audienceProfile.engagementStyle}</p>
-          </div>
-        </div>
-        <div>
-          <span className="text-gray-500 text-sm">Primary Interests</span>
-          <div className="flex flex-wrap gap-1.5 mt-1">
+          <p className="text-xs text-gray-500 mb-2">Primary Interests</p>
+          <div className="flex flex-wrap gap-1.5">
             {analysis.audienceProfile.primaryInterests.map((i) => (
               <Pill key={i} label={i} color="blue" />
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Content Tone */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="font-semibold text-gray-900 mb-3">Content Tone</h2>
-        <div className="text-sm space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Primary Tone:</span>
-            <span className="font-medium capitalize">{analysis.contentTone.primaryTone}</span>
+        {/* Content Tone */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="text-base">🎙️</span> Content Tone
+          </h2>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <StatCell label="Primary Tone" value={analysis.contentTone.primaryTone} />
+            <StatCell label="Authenticity" value={`${analysis.contentTone.authenticityScore}/10`} />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Authenticity:</span>
-            <span className="font-medium">{analysis.contentTone.authenticityScore}/10</span>
-          </div>
-          <div>
-            <span className="text-gray-500">Style:</span>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {analysis.contentTone.styleKeywords.map((k) => (
-                <Pill key={k} label={k} color="gray" />
-              ))}
-            </div>
+          <p className="text-xs text-gray-500 mb-2">Style Keywords</p>
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {analysis.contentTone.styleKeywords.map((k) => (
+              <Pill key={k} label={k} color="gray" />
+            ))}
           </div>
           {analysis.contentTone.brandSafetyNotes !== "None identified" && (
-            <div className="text-yellow-700 bg-yellow-50 rounded p-2 text-xs">
-              Brand safety: {analysis.contentTone.brandSafetyNotes}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">
+              ⚠️ Brand safety: {analysis.contentTone.brandSafetyNotes}
             </div>
           )}
         </div>
       </div>
 
-      {/* Top Sponsorship Categories */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="font-semibold text-gray-900 mb-3">Top Sponsorship Categories</h2>
-        <div className="space-y-3">
-          {analysis.topSponsorshipCategories.map((cat, i) => (
-            <div key={i}>
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="font-medium">{cat.category}</span>
-                <span className="text-gray-500">{cat.fitScore}/10</span>
+      {/* Top Sponsorship Categories — 2×2 grid of cards */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="text-base">🏷️</span> Top Sponsorship Categories
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {analysis.topSponsorshipCategories.map((cat, i) => {
+            const { bar, badge } = scoreColor(cat.fitScore);
+            return (
+              <div key={i} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm text-gray-900">{cat.category}</span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badge}`}>
+                    {cat.fitScore}/10
+                  </span>
+                </div>
+                <div className="bg-gray-200 rounded-full h-1.5 mb-2">
+                  <div className={`${bar} h-1.5 rounded-full`} style={{ width: `${cat.fitScore * 10}%` }} />
+                </div>
+                <p className="text-xs text-gray-600">{cat.rationale}</p>
               </div>
-              <ScoreBar score={cat.fitScore} />
-              <p className="text-xs text-gray-600 mt-1">{cat.rationale}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Brand Suggestions */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <h2 className="font-semibold text-gray-900 mb-3">Brand Suggestions</h2>
-        <div className="space-y-4">
+      {/* Brand Suggestions — 2-column card grid */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="text-base">🤝</span> Brand Suggestions
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {analysis.specificBrandSuggestions.map((brand, i) => (
-            <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm">{brand.brandName}</span>
+            <div key={i} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-semibold text-sm text-gray-900">{brand.brandName}</span>
                 <Pill label={brand.category} color="gray" />
               </div>
-              <p className="text-sm text-gray-700 mb-1">{brand.fitReason}</p>
-              <p className="text-xs text-gray-500 italic">
-                Pitch angle: {brand.pitchAngle}
-              </p>
+              <p className="text-xs text-gray-700 leading-relaxed">{brand.fitReason}</p>
+              <div className="mt-auto pt-2 border-t border-gray-200">
+                <p className="text-xs text-blue-700 italic">💡 {brand.pitchAngle}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -176,7 +185,7 @@ export default function SponsorshipAnalyzer() {
 
   return (
     <ApiKeyGate>
-      <div className="max-w-2xl mx-auto p-6">
+      <div className={`mx-auto p-6 transition-all ${analysis ? "max-w-5xl" : "max-w-2xl"}`}>
         <h1 className="text-2xl font-bold mb-1">Sponsorship Fit Analyzer</h1>
         <p className="text-gray-600 mb-6 text-sm">
           Paste a video transcript and/or audience comments to find the best-fit

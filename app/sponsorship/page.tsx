@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function SponsorshipPage() {
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
+    <main className="min-h-screen bg-gray-50 py-8 px-4">
       <Suspense>
         <SponsorshipAnalyzer />
       </Suspense>
