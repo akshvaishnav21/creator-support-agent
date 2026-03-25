@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import NavBar from "@/components/NavBar";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "CreatorIQ",
@@ -13,38 +14,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
-        <nav className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-6">
-          <Link href="/" className="font-bold text-blue-600 mr-2">
-            CreatorIQ
-          </Link>
-          <Link
-            href="/sponsorship"
-            className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            Sponsorship
-          </Link>
-          <Link
-            href="/comments"
-            className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            Comments
-          </Link>
-          <Link
-            href="/titles"
-            className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
-          >
-            Titles
-          </Link>
-          <Link
-            href="/settings"
-            className="text-sm text-gray-600 hover:text-blue-600 transition-colors ml-auto"
-          >
-            ⚙ Settings
-          </Link>
-        </nav>
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('creatoriq_theme');if(m==='dark'||(m!=='light'&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
+      </head>
+      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
+        <NavBar />
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </body>
     </html>
   );

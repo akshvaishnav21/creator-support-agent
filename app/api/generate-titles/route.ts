@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
+import { safeParseJSON, truncate, INPUT_LIMITS } from "@/lib/api-utils";
 import type { TitleAnalysis } from "@/lib/types";
 
 const SYSTEM_PROMPT = `You are an expert YouTube growth strategist and copywriter who specializes in high-converting video titles and hooks.
@@ -34,7 +35,7 @@ Make titles specific, vivid, and platform-appropriate for YouTube. Avoid clickba
 Return only the JSON object, nothing else.`;
 
 export async function POST(req: NextRequest) {
-  const { apiKey, concept, transcript } = await req.json();
+  const { apiKey, concept, captions } = await req.json();
 
   if (!apiKey) {
     return NextResponse.json(
@@ -50,17 +51,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const safeConcept = truncate(concept, INPUT_LIMITS.concept);
+  const safeCaptions = truncate(captions, INPUT_LIMITS.captions);
+
   try {
     const model = getGeminiClient(apiKey);
 
-    let prompt = SYSTEM_PROMPT + "\n\n---\n\nVIDEO CONCEPT:\n" + concept.trim();
-    if (transcript?.trim()) {
-      prompt += "\n\nVIDEO TRANSCRIPT / OUTLINE:\n" + transcript.trim();
+    let prompt = SYSTEM_PROMPT + "\n\n---\n\nVIDEO CONCEPT:\n" + safeConcept.trim();
+    if (safeCaptions?.trim()) {
+      prompt += "\n\nVIDEO CAPTIONS / OUTLINE:\n" + safeCaptions.trim();
     }
     prompt += "\n\nGenerate the 15 title variations as JSON.";
 
     const result = await model.generateContent(prompt);
-    const analysis: TitleAnalysis = JSON.parse(result.response.text());
+    const analysis = safeParseJSON<TitleAnalysis>(result.response.text());
     return NextResponse.json({ analysis });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Generation failed";

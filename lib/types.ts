@@ -81,7 +81,8 @@ export interface YouTubeVideoData {
   description: string;
   channelTitle: string;
   channelId: string;
-  transcript: string;
+  captions: string;
+  captionsAvailable: boolean;
   comments: string;
   recentVideoTitles: string[];
   viewCount?: string;

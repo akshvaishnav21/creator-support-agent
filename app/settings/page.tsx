@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function SettingsPage() {
   return (
-    <main className="min-h-screen bg-gray-50 py-12">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12">
       <ApiKeySettings />
     </main>
   );

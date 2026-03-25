@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import ApiKeyGate from "@/components/ApiKeyGate";
+import { getGeminiKey } from "@/lib/hooks";
 
 interface Message {
   role: "user" | "assistant";
@@ -22,13 +23,11 @@ function Chat() {
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
 
-    const apiKey = localStorage.getItem("creatoriq_gemini_key");
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage, apiKey }),
+        body: JSON.stringify({ message: userMessage, apiKey: getGeminiKey() }),
       });
       const data = await res.json();
       setMessages((prev) => [
@@ -47,32 +46,36 @@ function Chat() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-49px)] max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-center mb-4">Creator Chat</h1>
+      <h1 className="text-2xl font-bold text-center mb-4 text-gray-900 dark:text-gray-100">Creator Chat</h1>
 
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
         {messages.length === 0 && (
-          <p className="text-gray-400 text-center mt-8">
+          <p className="text-gray-400 dark:text-gray-500 text-center mt-8">
             Ask me anything about growing your YouTube channel!
           </p>
         )}
         {messages.map((msg, i) => (
           <div
             key={i}
-            className={`p-3 rounded-lg max-w-prose ${
-              msg.role === "user" ? "bg-blue-100 ml-auto" : "bg-gray-100"
+            className={`p-3 rounded-lg max-w-prose whitespace-pre-wrap ${
+              msg.role === "user"
+                ? "bg-blue-100 dark:bg-blue-900/40 text-gray-900 dark:text-gray-100 ml-auto"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             }`}
           >
             {msg.content}
           </div>
         ))}
         {loading && (
-          <div className="bg-gray-100 p-3 rounded-lg">Thinking...</div>
+          <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-gray-500 dark:text-gray-400">
+            Thinking...
+          </div>
         )}
       </div>
 
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
-          className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="flex-1 border dark:border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your channel..."

@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function TitlesPage() {
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-950 py-8">
       <Suspense>
         <TitleFactory />
       </Suspense>

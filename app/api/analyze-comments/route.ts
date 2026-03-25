@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
+import { safeParseJSON, truncate, INPUT_LIMITS } from "@/lib/api-utils";
 import type { CommentAnalysis } from "@/lib/types";
 
 const SYSTEM_PROMPT = `You are an expert audience research analyst specializing in YouTube creator analytics and community intelligence.
@@ -57,16 +58,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const safeComments = truncate(comments, INPUT_LIMITS.comments);
+
   try {
     const model = getGeminiClient(apiKey);
     const prompt =
       SYSTEM_PROMPT +
       "\n\n---\n\nYOUTUBE COMMENTS TO ANALYZE:\n\n" +
-      comments.trim() +
+      safeComments.trim() +
       "\n\nReturn the JSON analysis.";
 
     const result = await model.generateContent(prompt);
-    const analysis: CommentAnalysis = JSON.parse(result.response.text());
+    const analysis = safeParseJSON<CommentAnalysis>(result.response.text());
     return NextResponse.json({ analysis });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";

@@ -6,47 +6,70 @@
 ┌─────────────────────────────────────────────────┐
 │              Chrome Extension (MV3)              │
 │                                                  │
-│  content-script.js                               │
-│    └─ Scrapes YouTube transcript + comments      │
-│       on youtube.com/watch* pages                │
+│  content-script.js (MAIN world)                  │
+│    ├─ Extracts captions via 3 sources:           │
+│    │  ytInitialPlayerResponse,                   │
+│    │  ytplayer.bootstrapPlayerResponse,           │
+│    │  movie_player.getPlayerResponse()            │
+│    ├─ Scrapes comments from DOM (up to 100)      │
+│    ├─ Auto-scrolls to trigger lazy load          │
+│    └─ Exposes window.__creatoriq                 │
 │                                                  │
 │  popup.html / popup.js                           │
-│    └─ Mini UI: key input, tool launch buttons    │
-│    └─ Reads from chrome.storage.local            │
+│    ├─ Data badges (captions/comments status)     │
+│    ├─ Copy Captions / Copy Comments buttons      │
+│    ├─ Refresh data button                        │
+│    ├─ Color-coded tool launch buttons            │
+│    └─ Passes data via URL params to web app      │
 │                                                  │
 │  background.js (service worker)                  │
 │    └─ Minimal: handles extension lifecycle       │
+│                                                  │
+│  icons/ (CIQ monogram, 16/48/128px)             │
 └──────────────────┬──────────────────────────────┘
                    │ Opens web app URL with
-                   │ transcript/comments as
-                   │ query params (URLSearchParams)
+                   │ ?videoUrl= and optional
+                   │ &captions=...&comments=...
                    ▼
 ┌─────────────────────────────────────────────────┐
 │           Next.js Web App (Vercel)               │
 │                                                  │
 │  Pages:                                          │
 │    /              → Landing dashboard            │
-│    /settings      → Gemini API key entry         │
+│    /settings      → API key entry (Gemini + YT)  │
 │    /sponsorship   → Sponsorship Fit Analyzer     │
 │    /comments      → Comment Intelligence         │
 │    /titles        → Hook & Title Factory         │
+│    /chat          → Creator Chat                 │
 │                                                  │
 │  API Routes:                                     │
 │    POST /api/analyze-sponsorship                 │
 │    POST /api/analyze-comments                    │
 │    POST /api/generate-titles                     │
+│    POST /api/chat                                │
+│    POST /api/generate-email                      │
+│    POST /api/search-brands                       │
+│    POST /api/youtube/fetch                       │
 │                                                  │
-│  Shared:                                         │
-│    lib/gemini.ts    → Gemini client factory      │
+│  Shared Libraries:                               │
+│    lib/gemini.ts    → GEMINI_MODEL + factory     │
 │    lib/types.ts     → TypeScript interfaces      │
-│    components/      → Reusable UI components     │
+│    lib/api-utils.ts → safeParseJSON, truncate,   │
+│                       INPUT_LIMITS (15K)         │
+│    lib/hooks.ts     → useApiCall (180s timeout), │
+│                       getGeminiKey               │
+│                                                  │
+│  Shared Components:                              │
+│    NavBar, ThemeToggle, ErrorBoundary,           │
+│    CopyButton, LoadingSkeleton,                  │
+│    ApiKeyGate, YouTubeUrlInput                   │
 └──────────────────┬──────────────────────────────┘
                    │ Google Generative AI SDK
                    │ (user's API key from request body)
                    ▼
 ┌─────────────────────────────────────────────────┐
 │          Google Gemini API                       │
-│          Model: gemini-2.0-flash                 │
+│          Model: gemini-3-flash-preview           │
 │          Mode: JSON response (responseMimeType)  │
 └─────────────────────────────────────────────────┘
 ```
@@ -59,9 +82,10 @@
 |---|---|---|
 | Framework | Next.js (App Router) | 14.x |
 | Language | TypeScript | 5.x |
-| Styling | Tailwind CSS | 3.3 |
+| Styling | Tailwind CSS (class-based dark mode) | 3.3 |
 | AI SDK | `@google/generative-ai` | latest |
 | Extension | Chrome MV3 | - |
+| Testing | Playwright (visual auditing) | - |
 | Deployment | Vercel | free tier |
 
 ---
@@ -69,21 +93,26 @@
 ## BYOK (Bring Your Own Key) Flow
 
 ```
-User enters key on /settings
+User enters keys on /settings
          │
          ▼
-localStorage.setItem("creatoriq_gemini_key", key)
+localStorage: creatoriq_gemini_key (required)
+              creatoriq_yt_key     (optional)
+              creatoriq_theme      (dark/light)
          │
          ▼
-Any tool page: reads key from localStorage
+Tool component: reads key via getGeminiKey() (lib/hooks.ts)
          │
          ▼
-POST /api/analyze-* { apiKey: key, ...inputs }
+useApiCall() hook: POST /api/* { apiKey, ...inputs }
+  ├─ AbortController with 180s timeout
+  ├─ Automatic error handling
+  └─ Returns typed response
          │
          ▼
-API route: const { apiKey, ...inputs } = req.json()
-           const model = getGeminiClient(apiKey)
-           → calls Gemini with user's key
+API route: getGeminiClient(apiKey) → Gemini call
+           safeParseJSON() → strips markdown fences
+           truncate() → enforces INPUT_LIMITS (15K)
          │
          ▼
 Response returned, key never stored server-side
@@ -92,177 +121,62 @@ Response returned, key never stored server-side
 **Key storage locations:**
 - Web app: `localStorage` key `creatoriq_gemini_key`
 - Extension: `chrome.storage.local` key `geminiKey`
-
-**Security notes:**
-- Key is sent over HTTPS only
-- Never logged server-side
-- User can clear/rotate key on /settings at any time
+- YouTube API: `localStorage` key `creatoriq_yt_key`
+- Theme: `localStorage` key `creatoriq_theme`
+- Analysis cache: `localStorage` keys `creatoriq_last_sponsorship`, `creatoriq_last_comments`, `creatoriq_last_titles`
 
 ---
 
-## Page Structure & Routing
+## Dashboard UI Pattern
 
-```
-app/
-├── layout.tsx              ← Shared nav bar (all routes)
-├── page.tsx                ← Landing: tool picker dashboard
-├── settings/
-│   └── page.tsx            ← API key entry
-├── sponsorship/
-│   └── page.tsx            ← Sponsorship Fit Analyzer
-├── comments/
-│   └── page.tsx            ← Comment Intelligence
-├── titles/
-│   └── page.tsx            ← Hook & Title Factory
-└── api/
-    ├── analyze-sponsorship/route.ts
-    ├── analyze-comments/route.ts
-    └── generate-titles/route.ts
-```
+All tool components follow a consistent input→dashboard pattern:
 
----
+**Input state** (`max-w-3xl` centered):
+- YouTubeUrlInput for auto-fetch
+- Tool-specific form fields
+- Color-themed CTA button (blue/purple/orange)
 
-## Component Architecture
+**Results state** (`max-w-7xl` full-width dashboard):
+- Form hides completely
+- "New Analysis" back button + "Clear Results" button
+- Gradient summary banner with cross-tool links
+- Metric cards row with large numbers
+- Multi-column grid sections
+- Smooth width transition animation
 
-```
-components/
-├── ApiKeySettings.tsx    ← Key input form, localStorage save/clear
-├── ApiKeyGate.tsx        ← Wrapper: redirects to /settings if no key
-├── SponsorshipAnalyzer.tsx
-├── CommentIntelligence.tsx
-├── TitleFactory.tsx
-└── ChatInterface.tsx     ← Existing (updated for Gemini + BYOK)
-```
-
-**Shared UI patterns (Tailwind only, no libraries):**
-- `bg-blue-50 border border-blue-200 rounded-lg p-4` — highlighted insight cards
-- `bg-gray-100 rounded-lg p-4` — standard section cards
-- `bg-blue-100 text-blue-800 text-xs rounded-full px-2 py-0.5` — pill badges
-- `bg-green-400 h-2 rounded` inside `bg-gray-200 rounded` — score progress bars
+**Tool color themes:**
+- Sponsorship: blue-to-indigo gradient, blue CTA
+- Comments: violet-to-purple gradient, purple CTA
+- Titles: orange-to-rose gradient, orange CTA
 
 ---
 
-## Gemini Integration (`lib/gemini.ts`)
+## YouTube Data Fetching (`/api/youtube/fetch`)
 
-```ts
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-export function getGeminiClient(apiKey: string) {
-  return new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: "gemini-2.0-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-    },
-  });
-}
-```
-
-**All API routes follow this pattern:**
-```ts
-export async function POST(req: NextRequest) {
-  const { apiKey, ...inputs } = await req.json();
-
-  if (!apiKey) {
-    return NextResponse.json({ error: "Gemini API key required" }, { status: 401 });
-  }
-
-  const model = getGeminiClient(apiKey);
-  const result = await model.generateContent(buildPrompt(inputs));
-  const analysis = JSON.parse(result.response.text());
-
-  return NextResponse.json({ analysis });
-}
-```
-
-**Why `responseMimeType: "application/json"`?**
-Gemini's native JSON mode guarantees valid JSON output without prompt-level enforcement. More reliable than asking the model to avoid markdown fences.
+1. Extracts video ID from URL (supports `?v=`, `youtu.be/`, `embed/` formats)
+2. Fetches video metadata + statistics via YouTube Data API v3
+3. In parallel:
+   - Fetches top 100 comments via `commentThreads` endpoint with `textFormat=plainText`
+   - Fetches 10 recent channel uploads via `playlistItems`
+   - Fetches captions by scraping YouTube watch page HTML:
+     - Uses brace-counting JSON extractor (`extractJSON()`) to parse `ytInitialPlayerResponse` from page source
+     - Finds English caption tracks in the player response
+     - Attempts to fetch caption text via timedtext URL (JSON3 and XML formats)
+     - Returns `captionsAvailable: boolean` — YouTube blocks server-side timedtext requests, so captions may return empty even when available
 
 ---
 
-## API Route Schemas
+## YouTube Captions: Server vs Extension
 
-### POST `/api/analyze-sponsorship`
-**Request:** `{ apiKey, transcript?, comments? }`
-**Response:** `{ analysis: SponsorshipAnalysis }`
+| Approach | Works? | Notes |
+|---|---|---|
+| Server: timedtext API | No | YouTube returns empty body for server-side requests (ip=0.0.0.0) |
+| Server: InnerTube player API | No | All client types (WEB, ANDROID, IOS, MWEB) return 0 caption tracks |
+| Server: InnerTube get_transcript | No | Returns FAILED_PRECONDITION |
+| Server: npm packages | No | youtube-transcript, youtubei.js, youtube-captions-scraper all fail |
+| **Extension: browser fetch** | **Yes** | timedtext works from browser context with valid cookies/session |
 
-```ts
-interface SponsorshipAnalysis {
-  audienceProfile: {
-    ageRange: string;
-    primaryInterests: string[];
-    likelyGender: string;
-    incomeSignal: string;
-    engagementStyle: string;
-  };
-  contentTone: {
-    primaryTone: string;
-    styleKeywords: string[];
-    authenticityScore: number;
-    brandSafetyNotes: string;
-  };
-  topSponsorshipCategories: {
-    category: string;
-    fitScore: number;
-    rationale: string;
-  }[];
-  specificBrandSuggestions: {
-    brandName: string;
-    category: string;
-    fitReason: string;
-    pitchAngle: string;
-  }[];
-  summaryInsight: string;
-}
-```
-
-### POST `/api/analyze-comments`
-**Request:** `{ apiKey, comments }`
-**Response:** `{ analysis: CommentAnalysis }`
-
-```ts
-interface CommentAnalysis {
-  topicClusters: {
-    topic: string;
-    commentCount: number;
-    sentiment: "positive" | "negative" | "mixed";
-    keyQuotes: string[];
-  }[];
-  sentimentBreakdown: {
-    positive: number;
-    negative: number;
-    neutral: number;
-  };
-  futureVideoIdeas: {
-    title: string;
-    evidenceQuotes: string[];
-    demandScore: number;
-  }[];
-  topComplaints: {
-    complaint: string;
-    frequency: string;
-  }[];
-  appreciationHighlights: string[];
-  summaryInsight: string;
-}
-```
-
-### POST `/api/generate-titles`
-**Request:** `{ apiKey, concept, transcript? }`
-**Response:** `{ analysis: TitleAnalysis }`
-
-```ts
-interface TitleAnalysis {
-  titles: {
-    title: string;
-    hook: string;
-    psychPrinciple: "curiosity_gap" | "controversy" | "how_to" | "listicle" | "urgency" | "social_proof" | "story";
-    score: number;
-    whyItWorks: string;
-  }[];
-  topPick: string;
-  audienceAngle: string;
-}
-```
+The web app shows a warning when `captionsAvailable && !captions`: "Captions are available but YouTube blocks server-side access. Paste manually or use the Chrome extension."
 
 ---
 
@@ -270,54 +184,29 @@ interface TitleAnalysis {
 
 ```
 extension/
-├── manifest.json           ← MV3 manifest
+├── manifest.json           ← MV3 manifest (MAIN world content script)
 ├── background.js           ← Service worker (minimal)
 ├── content-script.js       ← Runs on youtube.com/watch* pages
 ├── popup.html              ← Extension popup UI
-├── popup.js                ← Popup logic
+├── popup.js                ← Popup logic (APP_URL constant)
+├── generate-icons.mjs      ← CIQ monogram icon generator
 └── icons/
-    ├── icon16.png
+    ├── icon16.png           ← CIQ on blue, rounded corners
     ├── icon48.png
     └── icon128.png
 ```
 
-**Manifest V3 key fields:**
-```json
-{
-  "manifest_version": 3,
-  "permissions": ["storage", "activeTab", "scripting"],
-  "host_permissions": ["https://www.youtube.com/*"],
-  "content_scripts": [{
-    "matches": ["https://www.youtube.com/watch*"],
-    "js": ["content-script.js"]
-  }]
-}
-```
+**Content script caption sources (fallback chain):**
+1. `window.ytInitialPlayerResponse` — available on initial page load
+2. `window.ytplayer.bootstrapPlayerResponse` — updated on SPA navigation
+3. `document.getElementById("movie_player").getPlayerResponse()` — fallback
 
-**Data handoff (Extension → Web App):**
-1. Content script extracts transcript + comments into `window.__creatoriq`
-2. Popup reads data via `chrome.scripting.executeScript`
-3. Popup opens web app URL: `https://[app-url]/sponsorship?transcript=...&comments=...`
-4. Web app reads URL params on mount and pre-fills textareas
-
-**Transcript extraction strategy:**
-- Target: `.ytd-transcript-segment-renderer` elements (YouTube transcript panel)
-- Fallback: video description text
-- Strips timestamps, joins segments with spaces
-
-**Comment extraction strategy:**
-- Target: `#content-text` inside `ytd-comment-renderer`
-- Scroll to trigger lazy loading before extraction
-- Collect up to 100 comments, join with newlines
-
----
-
-## Navigation Bar (layout.tsx)
-
-All pages share a top nav:
-```
-CreatorIQ  |  Chat  |  Sponsorship  |  Comments  |  Titles  |  ⚙ Settings
-```
+**Popup features:**
+- Data badges showing caption word count and comment count (green/amber/gray)
+- "Copy Captions" and "Copy Comments" clipboard buttons with "Copied!" flash
+- "Refresh data" button to re-collect without page reload
+- Color-coded tool buttons (blue/purple/orange) matching web app themes
+- Passes captions + comments directly via URL params (up to 8K chars each)
 
 ---
 
@@ -327,13 +216,12 @@ CreatorIQ  |  Chat  |  Sponsorship  |  Comments  |  Titles  |  ⚙ Settings
 |---|---|
 | *(none required)* | All API keys are user-supplied via BYOK |
 
-The existing `ANTHROPIC_API_KEY` env var is no longer needed (Gemini replaces Anthropic).
-
 ---
 
 ## Vercel Deployment Notes
 
 - No environment variables required (BYOK model)
 - All API routes are serverless functions (stateless)
-- `gemini-2.0-flash` responses are fast enough for the 10s Vercel Hobby timeout
+- `gemini-3-flash-preview` responses are fast enough for Vercel Hobby timeout
 - Extension is distributed separately (loaded unpacked or via Chrome Web Store)
+- Update `APP_URL` in `extension/popup.js` to your Vercel URL after deploy

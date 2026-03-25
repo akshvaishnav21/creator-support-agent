@@ -4,7 +4,7 @@
 
 **CreatorIQ** is a multi-tool AI platform for YouTube creators. It helps creators make smarter decisions about monetization, audience understanding, and content strategy — without requiring expensive analytics tools or marketing expertise.
 
-Powered by Google Gemini AI with a bring-your-own-key (BYOK) model, CreatorIQ runs entirely in the browser and on Vercel with zero server-side data storage.
+Powered by Google Gemini AI (`gemini-3-flash-preview`) with a bring-your-own-key (BYOK) model, CreatorIQ runs entirely in the browser and on Vercel with zero server-side data storage.
 
 ---
 
@@ -31,11 +31,13 @@ YouTube creators spend the majority of their time producing content, leaving alm
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
-| AI Engine | Google Gemini (`gemini-2.0-flash`) via `@google/generative-ai` |
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS (with dark mode) |
+| AI Engine | Google Gemini (`gemini-3-flash-preview`) via `@google/generative-ai` |
 | Auth model | None — BYOK (bring your own Gemini API key) |
+| Data fetching | YouTube Data API v3 (optional, user-supplied key) |
 | Deployment | Vercel (free tier compatible) |
 | Extension | Chrome Extension, Manifest V3 |
+| Testing | Playwright (visual auditing) |
 
 ---
 
@@ -47,7 +49,7 @@ Users supply their own Google Gemini API key. The key is:
 - Sent with each API request in the POST body
 - **Never stored server-side**
 
-This eliminates backend infrastructure costs and gives users full control over their API usage.
+An optional YouTube Data API key can be added for auto-fetching video comments and metadata by URL.
 
 ---
 
@@ -58,16 +60,17 @@ This eliminates backend infrastructure costs and gives users full control over t
 **Purpose**: Identify which brand categories and specific companies are the best fit for a creator's audience.
 
 **Input**:
-- Video transcript (paste text, up to ~15,000 chars)
-- Audience comments (paste text or import via extension)
+- Video captions (paste text or import via Chrome extension)
+- Audience comments (paste text, import via extension, or auto-fetch from YouTube URL with `textFormat=plainText`)
 - At least one input required
 
-**Output** (structured JSON rendered as UI):
-- **Audience Profile**: age range, primary interests (pill badges), likely gender split, income signal, engagement style
-- **Content Tone**: primary tone, style keywords, authenticity score (1–10), brand safety notes
-- **Top Sponsorship Categories** (4): category name, fit score (1–10) with visual bar, rationale
-- **Specific Brand Suggestions** (5): brand name, category, fit reasoning, pitch angle
-- **Executive Summary**: 2–3 sentence creator-facing insight
+**Output** (full-width dashboard layout):
+- **Executive Summary**: gradient banner with insight text, copy report button, cross-tool links
+- **Key Metrics Row**: 4 metric cards — CPM range, Authenticity Score, Age Range, Income Signal
+- **3-Column Row**: Audience Profile (interest pills) | Content Tone (style keywords, brand safety) | Deal Intelligence (deal type, brands to avoid)
+- **2-Column Row**: Sponsorship Categories (score bars) | Brand Suggestions (card grid with contact links, email generation)
+
+**Persistence**: Last analysis saved to localStorage, survives page reload.
 
 ---
 
@@ -76,15 +79,14 @@ This eliminates backend infrastructure costs and gives users full control over t
 **Purpose**: Turn raw comment sections into structured audience intelligence.
 
 **Input**:
-- Bulk comments (paste or import via extension, up to 200 comments)
+- Bulk comments (paste, import via extension, or auto-fetch from YouTube URL)
 
-**Output**:
-- **Topic Clusters**: grouped by theme, with sentiment label and key quotes per cluster
-- **Sentiment Breakdown**: positive / negative / neutral percentages (visual breakdown)
-- **Future Video Ideas** (5): title suggestion, supporting quotes from comments, demand score (1–10)
-- **Top Complaints** (3): what the audience is frustrated about
-- **Appreciation Highlights** (3): what the audience loves most
-- **Summary Insight**: 2–3 sentence executive summary
+**Output** (full-width dashboard layout):
+- **Summary banner**: violet gradient with insight, cross-tool links
+- **3-Column Row**: Sentiment donut chart | Top Complaints (red accent) | What They Love (green accent)
+- **2-Column Row**: Topic Clusters (with sentiment badges, key quotes) | Video Ideas (demand scores, "Generate titles" links)
+
+**Persistence**: Last analysis saved to localStorage, survives page reload.
 
 ---
 
@@ -94,20 +96,25 @@ This eliminates backend infrastructure costs and gives users full control over t
 
 **Input**:
 - Video concept / topic (short description, required)
-- Optional transcript or outline (for more personalized output)
+- Optional captions or outline
+- Can be pre-filled from YouTube URL fetch or cross-tool navigation
 
-**Output**:
-- **15+ title + hook variations** grouped by psychological principle:
-  - Curiosity Gap
-  - Controversy
-  - How-To / Tutorial
-  - Listicle
-  - Urgency / FOMO
-  - Social Proof
-  - Story / Journey
-- Each variation includes: title, hook sentence, score (1–10), why it works
-- **Top Pick**: single best recommendation
-- **Audience Angle**: one sentence on who this appeals to most
+**Output** (full-width dashboard layout):
+- **Top Pick banner**: orange-to-rose gradient with best title, audience angle, copy buttons
+- **Stats bar**: title count, principle count, "copy all" action
+- **2-Column masonry grid**: principle groups as cards with colored badges, individual title cards with scores, hooks, copy buttons
+
+**Persistence**: Last analysis saved to localStorage, survives page reload.
+
+---
+
+### Feature 4 — Creator Chat (`/chat`)
+
+**Purpose**: General-purpose AI assistant for YouTube creators.
+
+**Input**: Free-text messages about content strategy, analytics, audience growth, monetization.
+
+**Output**: Conversational AI responses powered by Gemini.
 
 ---
 
@@ -116,15 +123,15 @@ This eliminates backend infrastructure costs and gives users full control over t
 **Platform**: Chrome (Manifest V3)
 
 **Core capabilities**:
-- **One-click transcript import**: Reads YouTube's auto-generated transcript from the transcript panel on any video page
-- **Comment importer**: Scrapes top comments (up to 100) from the current video
-- **Quick launch**: Opens web app with imported data pre-filled via URL params
+- **CIQ monogram icons**: visible in Chrome toolbar at 16/48/128px
+- **Captions extraction**: 3-source fallback (ytInitialPlayerResponse, ytplayer.bootstrapPlayerResponse, movie_player.getPlayerResponse)
+- **Comment extraction**: Scrapes top 100 comments from DOM, auto-scrolls to trigger lazy loading
+- **Copy buttons**: One-click "Copy Captions" and "Copy Comments" to clipboard
+- **Data badges**: Green/amber/gray status showing word count and comment count
+- **Refresh button**: Re-collects data without page reload
+- **Tool launch**: Color-coded buttons (blue/purple/orange) that pass captions and comments directly via URL params
+- **SPA navigation**: Re-collects data when YouTube navigates between videos
 - **Gemini key storage**: Stores user's key in `chrome.storage.local`
-- **Popup UI**: Shows current video title, import buttons, and links to each tool
-
-**Extension pages**:
-- Popup (`popup.html`): Main UI shown when clicking the extension icon
-- Content script (`content-script.js`): Runs on `youtube.com/watch*` pages to extract data
 
 ---
 
@@ -133,20 +140,27 @@ This eliminates backend infrastructure costs and gives users full control over t
 | Requirement | Spec |
 |---|---|
 | No server-side data storage | API routes are stateless — process and discard |
-| Vercel free tier compatible | All routes complete within 10s (use `gemini-2.0-flash` for speed) |
+| Vercel free tier compatible | All routes complete within timeout using `gemini-3-flash-preview` |
 | No authentication | No login, no accounts, no sessions |
-| Mobile-friendly UI | Tailwind responsive classes throughout |
-| TypeScript strict mode | All types defined, no `any` |
-| Zero new UI libraries | Tailwind only, no component libraries |
+| Mobile-friendly UI | Responsive nav (hamburger on mobile), Tailwind responsive classes |
+| Dark mode | Class-based Tailwind dark mode, flash-free with blocking script |
+| Dashboard results | Full-width `max-w-7xl` multi-column grid layouts when results are shown |
+| Client-side persistence | Last analysis per tool in localStorage |
+| Robust JSON parsing | `safeParseJSON()` strips markdown fences from AI responses |
+| Input validation | Server-side truncation at 15K chars per field, client-side `maxLength` |
+| Request timeouts | 180s AbortController timeout on all client-side API calls |
+| Error boundaries | React ErrorBoundary wraps all page content |
+| TypeScript strict mode | All types defined in `lib/types.ts` |
+| Zero UI libraries | Tailwind only, no component libraries |
 
 ---
 
-## Out of Scope (MVP)
+## Out of Scope (Current)
 
-- YouTube Data API integration (real analytics)
-- Saved analysis history
+- Saved analysis history (beyond last-result persistence)
 - User accounts / authentication
 - Monetization / subscription model
 - Firefox extension
 - Multi-language support
 - Video upload / direct audio transcription
+- Server-side caption fetching (blocked by YouTube as of 2025)

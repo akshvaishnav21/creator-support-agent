@@ -48,14 +48,14 @@ export default function ApiKeySettings() {
 
   return (
     <div className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-2">API Key Settings</h1>
-      <p className="text-gray-600 mb-6">
+      <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">API Key Settings</h1>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">
         CreatorIQ uses your own Google Gemini API key. Your key is stored only in
         your browser and never sent to our servers.
       </p>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-blue-800">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+        <p className="text-sm text-blue-800 dark:text-blue-300">
           Get a free Gemini API key at{" "}
           <a
             href="https://aistudio.google.com/app/apikey"
@@ -69,7 +69,7 @@ export default function ApiKeySettings() {
         </p>
       </div>
 
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
         Gemini API Key
       </label>
       <input
@@ -77,7 +77,7 @@ export default function ApiKeySettings() {
         value={key}
         onChange={(e) => setKey(e.target.value)}
         placeholder="AIza..."
-        className="w-full border rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono text-sm"
+        className="w-full border dark:border-gray-600 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
       />
 
       <div className="flex gap-3">
@@ -91,7 +91,7 @@ export default function ApiKeySettings() {
         {hasKey && (
           <button
             onClick={handleClear}
-            className="border border-red-300 text-red-600 px-5 py-2 rounded-lg hover:bg-red-50"
+            className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-5 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
           >
             Clear Key
           </button>
@@ -99,15 +99,15 @@ export default function ApiKeySettings() {
       </div>
 
       {hasKey && (
-        <p className="mt-4 text-sm text-green-700 font-medium">
+        <p className="mt-4 text-sm text-green-700 dark:text-green-400 font-medium">
           Gemini key is set. You can use all CreatorIQ tools.
         </p>
       )}
 
-      <hr className="my-8 border-gray-200" />
+      <hr className="my-8 border-gray-200 dark:border-gray-700" />
 
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-red-800">
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+        <p className="text-sm text-red-800 dark:text-red-300">
           Get a free YouTube Data API key at{" "}
           <a
             href="https://console.cloud.google.com/"
@@ -123,15 +123,15 @@ export default function ApiKeySettings() {
         </p>
       </div>
 
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        YouTube Data API Key
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+        YouTube Data API Key <span className="text-gray-400 font-normal">(optional)</span>
       </label>
       <input
         type="password"
         value={ytKey}
         onChange={(e) => setYtKey(e.target.value)}
         placeholder="AIza..."
-        className="w-full border rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-red-400 font-mono text-sm"
+        className="w-full border dark:border-gray-600 rounded-lg px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-red-400 font-mono text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
       />
 
       <div className="flex gap-3">
@@ -145,7 +145,7 @@ export default function ApiKeySettings() {
         {hasYtKey && (
           <button
             onClick={handleClearYt}
-            className="border border-red-300 text-red-600 px-5 py-2 rounded-lg hover:bg-red-50"
+            className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-5 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
           >
             Clear Key
           </button>
@@ -153,7 +153,7 @@ export default function ApiKeySettings() {
       </div>
 
       {hasYtKey && (
-        <p className="mt-4 text-sm text-green-700 font-medium">
+        <p className="mt-4 text-sm text-green-700 dark:text-green-400 font-medium">
           YouTube API key is set. Paste a video URL in any tool to auto-fetch data.
         </p>
       )}

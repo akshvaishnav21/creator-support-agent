@@ -16,11 +16,11 @@ export default function ApiKeyGate({ children }: { children: React.ReactNode }) 
   if (!hasKey) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-sm">
-          <h2 className="text-lg font-semibold text-yellow-900 mb-2">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-6 max-w-sm">
+          <h2 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
             API Key Required
           </h2>
-          <p className="text-sm text-yellow-800 mb-4">
+          <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-4">
             You need a Gemini API key to use this tool. It&apos;s free and takes
             30 seconds to set up.
           </p>

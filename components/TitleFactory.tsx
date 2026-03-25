@@ -3,89 +3,107 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
+import CopyButton from "@/components/CopyButton";
+import { TitlesSkeleton } from "@/components/LoadingSkeleton";
 import YouTubeUrlInput from "@/components/YouTubeUrlInput";
+import { useApiCall, getGeminiKey } from "@/lib/hooks";
 import type { TitleAnalysis, PsychPrinciple, YouTubeVideoData } from "@/lib/types";
 
+const STORAGE_KEY = "creatoriq_last_titles";
+
 const PRINCIPLE_LABELS: Record<PsychPrinciple, string> = {
-  curiosity_gap: "Curiosity Gap",
-  controversy: "Controversy",
-  how_to: "How-To / Tutorial",
-  listicle: "Listicle",
-  urgency: "Urgency / FOMO",
-  social_proof: "Social Proof",
-  story: "Story / Journey",
+  curiosity_gap: "Curiosity Gap", controversy: "Controversy", how_to: "How-To",
+  listicle: "Listicle", urgency: "Urgency / FOMO", social_proof: "Social Proof", story: "Story",
 };
 
 const PRINCIPLE_COLORS: Record<PsychPrinciple, string> = {
-  curiosity_gap: "bg-purple-100 text-purple-800",
-  controversy: "bg-red-100 text-red-800",
-  how_to: "bg-blue-100 text-blue-800",
-  listicle: "bg-green-100 text-green-800",
-  urgency: "bg-orange-100 text-orange-800",
-  social_proof: "bg-teal-100 text-teal-800",
-  story: "bg-pink-100 text-pink-800",
+  curiosity_gap: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  controversy: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  how_to: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  listicle: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  urgency: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  social_proof: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+  story: "bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300",
 };
 
-function ScoreBar({ score }: { score: number }) {
-  return (
-    <div className="bg-gray-200 rounded h-1.5 w-16">
-      <div
-        className="bg-green-400 h-1.5 rounded"
-        style={{ width: `${score * 10}%` }}
-      />
-    </div>
-  );
+function buildReportText(a: TitleAnalysis): string {
+  const grouped = a.titles.reduce<Partial<Record<PsychPrinciple, typeof a.titles>>>((acc, t) => {
+    if (!acc[t.psychPrinciple]) acc[t.psychPrinciple] = [];
+    acc[t.psychPrinciple]!.push(t); return acc;
+  }, {});
+  const lines = [`# Title & Hook Variations`, ``, `**Top Pick:** ${a.topPick}`, `**Audience:** ${a.audienceAngle}`, ``];
+  for (const [p, titles] of Object.entries(grouped)) {
+    lines.push(`## ${PRINCIPLE_LABELS[p as PsychPrinciple]}`);
+    for (const t of titles!) lines.push(`- **${t.title}** (${t.score}/10)`, `  Hook: ${t.hook}`, `  ${t.whyItWorks}`);
+    lines.push("");
+  }
+  return lines.join("\n");
 }
 
 function Results({ analysis }: { analysis: TitleAnalysis }) {
-  // Group titles by principle
-  const grouped = analysis.titles.reduce<Partial<Record<PsychPrinciple, typeof analysis.titles>>>(
-    (acc, t) => {
-      if (!acc[t.psychPrinciple]) acc[t.psychPrinciple] = [];
-      acc[t.psychPrinciple]!.push(t);
-      return acc;
-    },
-    {}
-  );
-
+  const grouped = analysis.titles.reduce<Partial<Record<PsychPrinciple, typeof analysis.titles>>>((acc, t) => {
+    if (!acc[t.psychPrinciple]) acc[t.psychPrinciple] = [];
+    acc[t.psychPrinciple]!.push(t); return acc;
+  }, {});
   const principles = Object.keys(grouped) as PsychPrinciple[];
+  const allTitles = analysis.titles.map((t) => t.title).join("\n");
 
   return (
-    <div className="space-y-6 mt-6">
-      {/* Top Pick */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-semibold uppercase tracking-wide text-blue-600">Top Pick</span>
-        </div>
-        <p className="font-bold text-blue-900 text-lg">{analysis.topPick}</p>
-        <p className="text-blue-700 text-sm mt-1">{analysis.audienceAngle}</p>
-      </div>
-
-      {/* Titles grouped by principle */}
-      {principles.map((principle) => (
-        <div key={principle} className="bg-gray-50 rounded-lg p-4">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <span className={`text-xs rounded-full px-2 py-0.5 ${PRINCIPLE_COLORS[principle]}`}>
-              {PRINCIPLE_LABELS[principle]}
-            </span>
-          </h2>
-          <div className="space-y-3">
-            {grouped[principle]!.map((t, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-3 bg-white">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="font-semibold text-sm">{t.title}</p>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs text-gray-500">{t.score}/10</span>
-                    <ScoreBar score={t.score} />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 italic mb-1">Hook: {t.hook}</p>
-                <p className="text-xs text-gray-600">{t.whyItWorks}</p>
-              </div>
-            ))}
+    <div className="mt-8 animate-fade-in space-y-5">
+      {/* Top Pick banner */}
+      <div className="bg-gradient-to-r from-orange-500 to-rose-500 dark:from-orange-700 dark:to-rose-700 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-xs uppercase tracking-widest text-orange-200 mb-2 font-semibold">Top Pick</p>
+            <p className="text-xl font-bold leading-tight">{analysis.topPick}</p>
+            <p className="text-sm text-orange-100 mt-2">{analysis.audienceAngle}</p>
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <CopyButton text={analysis.topPick} label="Copy top pick" className="text-orange-200 hover:text-white" />
+            <CopyButton text={buildReportText(analysis)} label="Copy all" className="text-orange-200 hover:text-white" />
           </div>
         </div>
-      ))}
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <span className="font-medium">{analysis.titles.length} titles</span>
+          <span>across {principles.length} principles</span>
+        </div>
+        <button onClick={() => navigator.clipboard.writeText(allTitles)}
+          className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-medium">
+          Copy all titles as list
+        </button>
+      </div>
+
+      {/* Titles in masonry-style 2-column grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {principles.map((principle) => (
+          <div key={principle} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+            <div className="mb-4">
+              <span className={`text-xs font-bold rounded-full px-3 py-1 ${PRINCIPLE_COLORS[principle]}`}>
+                {PRINCIPLE_LABELS[principle]}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {grouped[principle]!.map((t, i) => (
+                <div key={i} className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 bg-gray-50 dark:bg-gray-900/50 hover:border-orange-200 dark:hover:border-orange-700 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 leading-snug">{t.title}</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <CopyButton text={t.title} label="Copy" />
+                      <span className="text-xs font-bold text-gray-500 dark:text-gray-400 tabular-nums">{t.score}/10</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 italic mb-1">{t.hook}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t.whyItWorks}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -93,113 +111,74 @@ function Results({ analysis }: { analysis: TitleAnalysis }) {
 export default function TitleFactory() {
   const searchParams = useSearchParams();
   const [concept, setConcept] = useState("");
-  const [transcript, setTranscript] = useState("");
-
-  const videoUrl = searchParams.get("videoUrl") ?? undefined;
-
-  useEffect(() => {
-    const c = searchParams.get("concept");
-    const t = searchParams.get("transcript");
-    if (c) setConcept(decodeURIComponent(c));
-    if (t) setTranscript(decodeURIComponent(t));
-  }, [searchParams]);
-  const [loading, setLoading] = useState(false);
+  const [captions, setCaptions] = useState("");
   const [analysis, setAnalysis] = useState<TitleAnalysis | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const videoUrl = searchParams.get("videoUrl") ?? undefined;
+  const { loading, error, call } = useApiCall<{ analysis: TitleAnalysis }>();
+
+  useEffect(() => { try { const s = localStorage.getItem(STORAGE_KEY); if (s) setAnalysis(JSON.parse(s)); } catch { /* */ } }, []);
+  useEffect(() => {
+    const c = searchParams.get("concept"); const t = searchParams.get("captions");
+    if (c) setConcept(decodeURIComponent(c)); if (t) setCaptions(decodeURIComponent(t));
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!concept.trim() || loading) return;
-
-    setLoading(true);
-    setError(null);
-    setAnalysis(null);
-
-    const apiKey = localStorage.getItem("creatoriq_gemini_key");
-
-    try {
-      const res = await fetch("/api/generate-titles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, concept, transcript }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      setAnalysis(data.analysis);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
+    e.preventDefault(); if (!concept.trim() || loading) return; setAnalysis(null);
+    const result = await call("/api/generate-titles", { apiKey: getGeminiKey(), concept, captions });
+    if (result?.analysis) { setAnalysis(result.analysis); localStorage.setItem(STORAGE_KEY, JSON.stringify(result.analysis)); }
   }
+
+  function clearResults() { setAnalysis(null); localStorage.removeItem(STORAGE_KEY); }
 
   return (
     <ApiKeyGate>
-      <div className="max-w-2xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-1">Hook &amp; Title Factory</h1>
-        <p className="text-gray-600 mb-6 text-sm">
-          Generate 15 high-converting title and hook variations for your video,
-          grouped by psychological principle.
-        </p>
-
-        <YouTubeUrlInput
-          onFetched={(data: YouTubeVideoData) => {
-            if (data.title) setConcept(data.title);
-            if (data.transcript) setTranscript(data.transcript);
-          }}
-          autoFetchUrl={videoUrl}
-        />
-
-        <div className="flex items-center gap-3 my-1">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400">or fill in manually</span>
-          <div className="flex-1 border-t border-gray-200" />
+      <div className={`mx-auto px-4 sm:px-6 py-6 transition-all duration-300 ${analysis ? "max-w-7xl" : "max-w-3xl"}`}>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Hook & Title Factory</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+            Generate 15 high-converting title and hook variations grouped by psychological principle.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Video Concept <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={concept}
-              onChange={(e) => setConcept(e.target.value)}
-              placeholder="e.g. How I saved $10,000 in one year on a $50k salary"
-              className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              maxLength={500}
-            />
-          </div>
+        {!analysis && (
+          <>
+            <YouTubeUrlInput onFetched={(data: YouTubeVideoData) => { if (data.title) setConcept(data.title); if (data.captions) setCaptions(data.captions); }} autoFetchUrl={videoUrl} />
+            <div className="flex items-center gap-3 my-3">
+              <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+              <span className="text-xs text-gray-400">or fill in manually</span>
+              <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Video Concept <span className="text-red-500">*</span></label>
+                <input type="text" value={concept} onChange={(e) => setConcept(e.target.value)}
+                  placeholder="e.g. How I saved $10,000 in one year on a $50k salary" maxLength={500}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Captions or Outline <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <textarea value={captions} onChange={(e) => setCaptions(e.target.value)}
+                  placeholder="Paste your script outline or key points here..." rows={4} maxLength={15000}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-y bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+              </div>
+              {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
+              <button type="submit" disabled={!concept.trim() || loading}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50 transition-colors shadow-sm shadow-orange-500/25">
+                {loading ? "Generating..." : "Generate 15 Titles"}
+              </button>
+            </form>
+          </>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Transcript or Outline{" "}
-              <span className="text-gray-400 font-normal">(optional, improves results)</span>
-            </label>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Paste your script outline or key points here..."
-              rows={5}
-              maxLength={10000}
-              className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
-            />
-          </div>
+        {loading && <TitlesSkeleton />}
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={!concept.trim() || loading}
-            className="w-full bg-blue-500 text-white py-2.5 rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50"
-          >
-            {loading ? "Generating..." : "Generate 15 Titles"}
-          </button>
-        </form>
-
-        {loading && (
-          <div className="text-center text-gray-500 py-12">
-            Generating title variations with Gemini...
+        {analysis && !loading && (
+          <div className="flex items-center gap-3 mb-2">
+            <button onClick={() => setAnalysis(null)} className="text-sm text-orange-600 dark:text-orange-400 hover:underline font-medium">← New Generation</button>
+            <div className="flex-1" />
+            <button onClick={clearResults} className="text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-4 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">Clear Results</button>
           </div>
         )}
 

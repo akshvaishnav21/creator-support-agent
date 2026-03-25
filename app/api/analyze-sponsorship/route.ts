@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
+import { safeParseJSON, truncate, INPUT_LIMITS } from "@/lib/api-utils";
 import type { SponsorshipAnalysis } from "@/lib/types";
 
 const SYSTEM_PROMPT = `You are a senior influencer-marketing strategist with 10+ years placing brand deals at top creator agencies. You have current knowledge of YouTube niche CPM rates and active brand partnership programs.
@@ -54,10 +55,10 @@ Rules:
 - Do NOT include an outreachEmailTemplate field.
 - Return ONLY the JSON object. No markdown fences, no commentary before or after.`;
 
-function buildPrompt(transcript?: string, comments?: string): string {
+function buildPrompt(captions?: string, comments?: string): string {
   const parts: string[] = [];
-  if (transcript?.trim()) {
-    parts.push(`VIDEO TRANSCRIPT:\n${transcript.trim()}`);
+  if (captions?.trim()) {
+    parts.push(`VIDEO CAPTIONS:\n${captions.trim()}`);
   }
   if (comments?.trim()) {
     parts.push(`AUDIENCE COMMENTS:\n${comments.trim()}`);
@@ -71,7 +72,7 @@ function buildPrompt(transcript?: string, comments?: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { apiKey, transcript, comments } = await req.json();
+  const { apiKey, captions, comments } = await req.json();
 
   if (!apiKey) {
     return NextResponse.json(
@@ -80,17 +81,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!transcript?.trim() && !comments?.trim()) {
+  if (!captions?.trim() && !comments?.trim()) {
     return NextResponse.json(
-      { error: "At least one of transcript or comments is required" },
+      { error: "At least one of captions or comments is required" },
       { status: 400 }
     );
   }
 
+  const safeCaptions = truncate(captions, INPUT_LIMITS.captions);
+  const safeComments = truncate(comments, INPUT_LIMITS.comments);
+
   try {
     const model = getGeminiClient(apiKey);
-    const result = await model.generateContent(buildPrompt(transcript, comments));
-    const analysis: SponsorshipAnalysis = JSON.parse(result.response.text());
+    const result = await model.generateContent(buildPrompt(safeCaptions, safeComments));
+    const analysis = safeParseJSON<SponsorshipAnalysis>(result.response.text());
     return NextResponse.json({ analysis });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";

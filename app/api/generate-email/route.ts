@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
+import { safeParseJSON } from "@/lib/api-utils";
 
 export async function POST(req: NextRequest) {
   const { apiKey, brandName, pitchAngle, audienceProfile, contentTone } =
@@ -43,7 +44,7 @@ Return ONLY the JSON object.`;
   try {
     const model = getGeminiClient(apiKey);
     const result = await model.generateContent(prompt);
-    const { email } = JSON.parse(result.response.text());
+    const { email } = safeParseJSON<{ email: string }>(result.response.text());
     return NextResponse.json({ email });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Email generation failed";

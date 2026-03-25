@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GEMINI_MODEL } from "@/lib/gemini";
 import type { BrandContactResult } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -16,8 +17,8 @@ export async function POST(req: NextRequest) {
   // Cannot use getGeminiClient() here — it hardcodes responseMimeType: "application/json"
   // which is incompatible with grounding tools. Instantiate directly.
   const searchModel = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: "gemini-2.0-flash",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    model: GEMINI_MODEL,
+
     tools: [{ googleSearchRetrieval: {} } as any],
   });
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
           `Find the official sponsorship or creator partnership page for ${brandName}, and their business contact or inquiries page.`
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    
         const chunks: any[] =
           (result.response.candidates?.[0] as any)?.groundingMetadata
             ?.groundingChunks ?? [];
