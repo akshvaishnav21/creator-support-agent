@@ -12,6 +12,13 @@ export interface BrandSuggestion {
   pitchAngle: string;
 }
 
+export interface BrandContactResult {
+  brandName: string;
+  sponsorshipUrl: string | null;
+  contactUrl: string | null;
+  searchStatus: "found" | "not_found" | "error";
+}
+
 export interface SponsorshipAnalysis {
   audienceProfile: {
     ageRange: string;
@@ -28,6 +35,10 @@ export interface SponsorshipAnalysis {
   };
   topSponsorshipCategories: SponsorshipCategory[];
   specificBrandSuggestions: BrandSuggestion[];
+  estimatedCpmRange: { low: number; high: number };
+  outreachEmailTemplate: string;
+  brandsToAvoid: string[];
+  dealTypeRecommendation: string;
   summaryInsight: string;
 }
 

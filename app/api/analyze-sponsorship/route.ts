@@ -2,43 +2,57 @@ import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/gemini";
 import type { SponsorshipAnalysis } from "@/lib/types";
 
-const SYSTEM_PROMPT = `You are an expert YouTube sponsorship strategist with deep knowledge of influencer marketing, audience psychology, and brand partnerships.
+const SYSTEM_PROMPT = `You are a senior influencer-marketing strategist with 10+ years placing brand deals at top creator agencies. You have current knowledge of YouTube niche CPM rates and active brand partnership programs.
 
-Analyze the provided creator content and return a JSON object with this exact structure:
+Analyze the provided creator content (transcript and/or audience comments) and return a JSON object conforming EXACTLY to this schema. Every string field must be specific and actionable — never generic. Brand rationale must cite concrete signals from the actual content. Pitch angles must name a specific deal mechanic.
+
 {
   "audienceProfile": {
-    "ageRange": "string (e.g. '18-34')",
-    "primaryInterests": ["array of 3-5 interest strings"],
-    "likelyGender": "string (e.g. 'mixed', 'predominantly male', 'predominantly female')",
-    "incomeSignal": "string (one of: 'budget-conscious', 'mid-range', 'premium')",
-    "engagementStyle": "string (one sentence describing how the audience interacts)"
+    "ageRange": "specific range e.g. '22-35'. Infer from vocabulary, references, and aspirations in the content.",
+    "primaryInterests": ["4-6 interest tags drawn directly from content signals, not generic labels"],
+    "likelyGender": "one of: 'predominantly male (est. 70%+)', 'predominantly female (est. 70%+)', 'roughly balanced (45-55% split)'",
+    "incomeSignal": "one of: 'budget-conscious (under $50k HHI)', 'mid-range ($50k-$100k HHI)', 'premium ($100k+ HHI)'",
+    "engagementStyle": "one sentence describing HOW the audience interacts, e.g. 'asks follow-up questions, shares timestamps, high save-rate behavior'"
   },
   "contentTone": {
-    "primaryTone": "string (e.g. 'educational', 'entertaining', 'motivational', 'technical')",
-    "styleKeywords": ["array of 3-4 adjectives"],
-    "authenticityScore": "number 1-10",
-    "brandSafetyNotes": "string (any concerns or 'None identified')"
+    "primaryTone": "single most precise word: 'educational', 'conversational', 'aspirational', 'technical', 'satirical', 'motivational', or 'documentary'",
+    "styleKeywords": ["4 adjectives a brand manager would use to describe this creator's on-screen presence"],
+    "authenticityScore": "integer 1-10. 10 = raw unscripted personality; 1 = fully polished corporate tone",
+    "brandSafetyNotes": "flag edgy language, controversial topics, or political content. If clean: 'None identified.'"
   },
   "topSponsorshipCategories": [
     {
-      "category": "string",
-      "fitScore": "number 1-10",
-      "rationale": "string (1-2 sentences)"
+      "category": "specific vertical e.g. 'developer tools & SaaS productivity' not just 'technology'",
+      "fitScore": "integer 1-10",
+      "rationale": "2 sentences: sentence 1 = audience-brand overlap; sentence 2 = cite a specific content moment proving the fit"
     }
   ],
   "specificBrandSuggestions": [
     {
-      "brandName": "string",
-      "category": "string",
-      "fitReason": "string (2-3 sentences)",
-      "pitchAngle": "string (one sentence on how the creator should approach the brand)"
+      "brandName": "a real, currently-active brand name (not a category placeholder)",
+      "category": "the vertical this brand belongs to",
+      "fitReason": "exactly 2 sentences: (1) why this brand's customer profile overlaps with this audience; (2) cite a specific content signal that makes the match obvious",
+      "pitchAngle": "one sentence with a specific deal mechanic e.g. 'Pitch Notion on a dedicated workflow video offering an affiliate link with a 3-month Pro trial for viewers.'"
     }
   ],
-  "summaryInsight": "string (2-3 sentences executive summary for the creator)"
+  "estimatedCpmRange": {
+    "low": "conservative CPM in USD as a plain number e.g. 25",
+    "high": "optimistic CPM in USD for a well-negotiated deal as a plain number e.g. 55"
+  },
+  "outreachEmailTemplate": "A complete cold outreach email as a single string with \\n for line breaks. Line 1 must be the subject prefixed with 'Subject:'. Then a blank line. Then the email body. Use [Creator Name], [Channel Name], [Subscriber Count] as placeholders. Reference the #1 brand from specificBrandSuggestions by name. Under 200 words. Friendly, direct, no fluff.",
+  "brandsToAvoid": [
+    "2-3 strings, each formatted as: 'BrandName or Category — one sentence explaining why this would harm audience trust or be a poor fit'"
+  ],
+  "dealTypeRecommendation": "one of: 'Dedicated video (highest CPM, best for complex products)', 'Integrated mid-roll (60-90 sec, balanced reach/rate)', 'Affiliate-only (lower upfront, long tail revenue)', 'Whitelisting/usage rights deal', 'Product seeding with gifting'. Add one sentence of reasoning for this creator specifically.",
+  "summaryInsight": "exactly 3 sentences: (1) the creator's strongest monetization asset; (2) the single highest-leverage action they should take this week; (3) a realistic 6-month revenue outlook given their content trajectory."
 }
 
-Return exactly 4 items in topSponsorshipCategories and exactly 5 items in specificBrandSuggestions.
-Return only the JSON object, nothing else.`;
+Rules:
+- Return exactly 4 items in topSponsorshipCategories.
+- Return exactly 5 items in specificBrandSuggestions.
+- Return exactly 2-3 items in brandsToAvoid.
+- estimatedCpmRange.low and .high must be plain numbers, no dollar sign, no quotes around the number.
+- Return ONLY the JSON object. No markdown fences, no commentary before or after.`;
 
 function buildPrompt(transcript?: string, comments?: string): string {
   const parts: string[] = [];

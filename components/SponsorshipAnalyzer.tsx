@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import ApiKeyGate from "@/components/ApiKeyGate";
-import type { SponsorshipAnalysis } from "@/lib/types";
+import type { SponsorshipAnalysis, BrandContactResult } from "@/lib/types";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const SCORE_COLORS = [
   { min: 8, bar: "bg-green-500", badge: "bg-green-100 text-green-800" },
@@ -14,15 +16,6 @@ const SCORE_COLORS = [
 
 function scoreColor(score: number) {
   return SCORE_COLORS.find((c) => score >= c.min)!;
-}
-
-function ScoreBar({ score }: { score: number }) {
-  const { bar } = scoreColor(score);
-  return (
-    <div className="bg-gray-200 rounded-full h-2 w-full">
-      <div className={`${bar} h-2 rounded-full transition-all`} style={{ width: `${score * 10}%` }} />
-    </div>
-  );
 }
 
 function Pill({ label, color = "blue" }: { label: string; color?: "blue" | "gray" }) {
@@ -39,21 +32,134 @@ function StatCell({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Results({ analysis }: { analysis: SponsorshipAnalysis }) {
+function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  async function handleCopy() {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
   return (
-    <div className="space-y-6 mt-8">
-      {/* Executive Summary — full-width banner */}
+    <button
+      onClick={handleCopy}
+      className="text-xs text-gray-400 hover:text-blue-600 transition-colors shrink-0"
+      title={label}
+    >
+      {copied ? <span className="text-green-600 text-xs">Copied!</span> : "📋"}
+    </button>
+  );
+}
+
+function buildReportText(analysis: SponsorshipAnalysis): string {
+  const lines: string[] = [
+    "# Sponsorship Fit Analysis",
+    "",
+    "## Executive Summary",
+    analysis.summaryInsight,
+    "",
+    "## Audience Profile",
+    `- Age Range: ${analysis.audienceProfile.ageRange}`,
+    `- Gender: ${analysis.audienceProfile.likelyGender}`,
+    `- Income Signal: ${analysis.audienceProfile.incomeSignal}`,
+    `- Engagement: ${analysis.audienceProfile.engagementStyle}`,
+    `- Interests: ${analysis.audienceProfile.primaryInterests.join(", ")}`,
+    "",
+    "## Content Tone",
+    `- Primary Tone: ${analysis.contentTone.primaryTone}`,
+    `- Authenticity: ${analysis.contentTone.authenticityScore}/10`,
+    `- Style: ${analysis.contentTone.styleKeywords.join(", ")}`,
+    `- Brand Safety: ${analysis.contentTone.brandSafetyNotes}`,
+    "",
+    "## Deal Intelligence",
+    `- Estimated CPM: $${analysis.estimatedCpmRange.low}–$${analysis.estimatedCpmRange.high}`,
+    `- Recommended Deal Type: ${analysis.dealTypeRecommendation}`,
+    "",
+    "### Brands to Avoid",
+    ...analysis.brandsToAvoid.map((b) => `- ${b}`),
+    "",
+    "## Top Sponsorship Categories",
+    ...analysis.topSponsorshipCategories.map(
+      (c) => `### ${c.category} (${c.fitScore}/10)\n${c.rationale}`
+    ),
+    "",
+    "## Brand Suggestions",
+    ...analysis.specificBrandSuggestions.map(
+      (b) =>
+        `### ${b.brandName} (${b.category})\n${b.fitReason}\n\nPitch: ${b.pitchAngle}`
+    ),
+    "",
+    "## Outreach Email Template",
+    analysis.outreachEmailTemplate,
+  ];
+  return lines.join("\n");
+}
+
+// ─── Outreach Email Card ────────────────────────────────────────────────────
+
+function OutreachEmailCard({ template }: { template: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+          <span>✉️</span> Outreach Email Template
+        </h2>
+        <span className="text-gray-400 text-sm">{open ? "▲ Collapse" : "▼ Expand"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 relative">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 pr-10">
+            <pre className="text-xs text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
+              {template}
+            </pre>
+          </div>
+          <div className="absolute top-2 right-2">
+            <CopyButton text={template} label="Copy email" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Results Dashboard ──────────────────────────────────────────────────────
+
+function Results({
+  analysis,
+  brandContacts,
+  contactsLoading,
+}: {
+  analysis: SponsorshipAnalysis;
+  brandContacts: BrandContactResult[] | null;
+  contactsLoading: boolean;
+}) {
+  const [avoidsOpen, setAvoidsOpen] = useState(false);
+  const reportText = buildReportText(analysis);
+
+  return (
+    <div className="space-y-6 mt-8 animate-fade-in">
+
+      {/* Executive Summary */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl p-5 text-white">
-        <p className="text-xs uppercase tracking-widest text-blue-200 mb-1 font-medium">Executive Summary</p>
-        <p className="text-sm leading-relaxed">{analysis.summaryInsight}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-blue-200 mb-1 font-medium">
+              Executive Summary
+            </p>
+            <p className="text-sm leading-relaxed">{analysis.summaryInsight}</p>
+          </div>
+          <CopyButton text={reportText} label="Copy full report as markdown" />
+        </div>
       </div>
 
-      {/* Audience Profile + Content Tone — side by side */}
+      {/* Audience Profile + Content Tone */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Audience Profile */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="text-base">👥</span> Audience Profile
+            <span>👥</span> Audience Profile
           </h2>
           <div className="grid grid-cols-2 gap-2 mb-4">
             <StatCell label="Age Range" value={analysis.audienceProfile.ageRange} />
@@ -69,10 +175,9 @@ function Results({ analysis }: { analysis: SponsorshipAnalysis }) {
           </div>
         </div>
 
-        {/* Content Tone */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="text-base">🎙️</span> Content Tone
+            <span>🎙️</span> Content Tone
           </h2>
           <div className="grid grid-cols-2 gap-2 mb-4">
             <StatCell label="Primary Tone" value={analysis.contentTone.primaryTone} />
@@ -84,18 +189,57 @@ function Results({ analysis }: { analysis: SponsorshipAnalysis }) {
               <Pill key={k} label={k} color="gray" />
             ))}
           </div>
-          {analysis.contentTone.brandSafetyNotes !== "None identified" && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">
-              ⚠️ Brand safety: {analysis.contentTone.brandSafetyNotes}
-            </div>
-          )}
+          {analysis.contentTone.brandSafetyNotes !== "None identified." &&
+            analysis.contentTone.brandSafetyNotes !== "None identified" && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-800">
+                ⚠️ {analysis.contentTone.brandSafetyNotes}
+              </div>
+            )}
         </div>
       </div>
 
-      {/* Top Sponsorship Categories — 2×2 grid of cards */}
+      {/* Deal Intelligence */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="text-base">🏷️</span> Top Sponsorship Categories
+          <span>💰</span> Deal Intelligence
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+            <p className="text-xs text-green-700 mb-0.5">Estimated CPM</p>
+            <p className="text-lg font-bold text-green-800">
+              ${analysis.estimatedCpmRange.low}–${analysis.estimatedCpmRange.high}
+            </p>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 sm:col-span-2">
+            <p className="text-xs text-blue-700 mb-0.5">Recommended Deal Type</p>
+            <p className="text-sm font-semibold text-blue-900">{analysis.dealTypeRecommendation}</p>
+          </div>
+        </div>
+
+        {/* Brands to Avoid */}
+        <button
+          onClick={() => setAvoidsOpen((o) => !o)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <span className="text-red-400">🚫</span>
+          <span>Brands to Avoid ({analysis.brandsToAvoid.length})</span>
+          <span className="text-xs">{avoidsOpen ? "▲" : "▼"}</span>
+        </button>
+        {avoidsOpen && (
+          <ul className="mt-3 space-y-1.5">
+            {analysis.brandsToAvoid.map((b, i) => (
+              <li key={i} className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                {b}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Top Sponsorship Categories */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>🏷️</span> Top Sponsorship Categories
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {analysis.topSponsorshipCategories.map((cat, i) => {
@@ -111,36 +255,82 @@ function Results({ analysis }: { analysis: SponsorshipAnalysis }) {
                 <div className="bg-gray-200 rounded-full h-1.5 mb-2">
                   <div className={`${bar} h-1.5 rounded-full`} style={{ width: `${cat.fitScore * 10}%` }} />
                 </div>
-                <p className="text-xs text-gray-600">{cat.rationale}</p>
+                <div className="flex items-start gap-1.5">
+                  <p className="text-xs text-gray-600 flex-1">{cat.rationale}</p>
+                  <CopyButton text={cat.rationale} label="Copy rationale" />
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Brand Suggestions — 2-column card grid */}
+      {/* Brand Suggestions */}
       <div className="bg-white border border-gray-200 rounded-xl p-5">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <span className="text-base">🤝</span> Brand Suggestions
+          <span>🤝</span> Brand Suggestions
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {analysis.specificBrandSuggestions.map((brand, i) => (
-            <div key={i} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-semibold text-sm text-gray-900">{brand.brandName}</span>
-                <Pill label={brand.category} color="gray" />
+          {analysis.specificBrandSuggestions.map((brand, i) => {
+            const contact = brandContacts?.find(
+              (c) => c.brandName === brand.brandName
+            );
+            return (
+              <div key={i} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-semibold text-sm text-gray-900">{brand.brandName}</span>
+                  <Pill label={brand.category} color="gray" />
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed">{brand.fitReason}</p>
+                <div className="mt-auto pt-2 border-t border-gray-200">
+                  <div className="flex items-start gap-1.5">
+                    <p className="text-xs text-blue-700 italic flex-1">💡 {brand.pitchAngle}</p>
+                    <CopyButton text={brand.pitchAngle} label="Copy pitch angle" />
+                  </div>
+                </div>
+
+                {/* Brand contact links */}
+                <div className="pt-1">
+                  {contactsLoading ? (
+                    <p className="text-xs text-gray-400 animate-pulse">Finding contact page...</p>
+                  ) : contact?.sponsorshipUrl ? (
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={contact.sponsorshipUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline font-medium"
+                      >
+                        View Sponsorship Page →
+                      </a>
+                      {contact.contactUrl && contact.contactUrl !== contact.sponsorshipUrl && (
+                        <a
+                          href={contact.contactUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-gray-500 hover:underline"
+                        >
+                          Contact →
+                        </a>
+                      )}
+                    </div>
+                  ) : contact?.searchStatus === "error" || contact?.searchStatus === "not_found" ? (
+                    <p className="text-xs text-gray-400">No contact page found</p>
+                  ) : null}
+                </div>
               </div>
-              <p className="text-xs text-gray-700 leading-relaxed">{brand.fitReason}</p>
-              <div className="mt-auto pt-2 border-t border-gray-200">
-                <p className="text-xs text-blue-700 italic">💡 {brand.pitchAngle}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Outreach Email */}
+      <OutreachEmailCard template={analysis.outreachEmailTemplate} />
     </div>
   );
 }
+
+// ─── Main Component ─────────────────────────────────────────────────────────
 
 export default function SponsorshipAnalyzer() {
   const searchParams = useSearchParams();
@@ -149,6 +339,8 @@ export default function SponsorshipAnalyzer() {
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<SponsorshipAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [brandContacts, setBrandContacts] = useState<BrandContactResult[] | null>(null);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   useEffect(() => {
     const t = searchParams.get("transcript");
@@ -157,6 +349,26 @@ export default function SponsorshipAnalyzer() {
     if (c) setComments(decodeURIComponent(c));
   }, [searchParams]);
 
+  async function triggerBrandSearch(apiKey: string, brands: string[]) {
+    setContactsLoading(true);
+    setBrandContacts(null);
+    try {
+      const res = await fetch("/api/search-brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey, brands }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBrandContacts(data.results);
+      }
+    } catch {
+      // silent — brand search is an enhancement only
+    } finally {
+      setContactsLoading(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if ((!transcript.trim() && !comments.trim()) || loading) return;
@@ -164,6 +376,7 @@ export default function SponsorshipAnalyzer() {
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setBrandContacts(null);
 
     const apiKey = localStorage.getItem("creatoriq_gemini_key");
 
@@ -176,6 +389,7 @@ export default function SponsorshipAnalyzer() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Analysis failed");
       setAnalysis(data.analysis);
+      triggerBrandSearch(apiKey!, data.analysis.specificBrandSuggestions.map((b: { brandName: string }) => b.brandName));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -221,9 +435,7 @@ export default function SponsorshipAnalyzer() {
             />
           </div>
 
-          {error && (
-            <p className="text-red-600 text-sm">{error}</p>
-          )}
+          {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button
             type="submit"
@@ -240,7 +452,13 @@ export default function SponsorshipAnalyzer() {
           </div>
         )}
 
-        {analysis && <Results analysis={analysis} />}
+        {analysis && (
+          <Results
+            analysis={analysis}
+            brandContacts={brandContacts}
+            contactsLoading={contactsLoading}
+          />
+        )}
       </div>
     </ApiKeyGate>
   );
