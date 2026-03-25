@@ -25,13 +25,20 @@
    * Tries multiple sources since ytInitialPlayerResponse becomes stale on SPA nav.
    */
   function getCaptionTracks() {
-    // Source 1: ytInitialPlayerResponse (available on initial load)
-    const src1 =
-      window.ytInitialPlayerResponse?.captions
-        ?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (src1?.length) return src1;
+    // Source 1: movie_player.getPlayerResponse() — freshest, works on SPA nav
+    try {
+      const player = document.getElementById("movie_player");
+      if (player?.getPlayerResponse) {
+        const resp = player.getPlayerResponse();
+        const src1 =
+          resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (src1?.length) return src1;
+      }
+    } catch {
+      // player not ready yet
+    }
 
-    // Source 2: ytplayer.bootstrapPlayerResponse (updated on SPA nav)
+    // Source 2: ytplayer.bootstrapPlayerResponse (may update on SPA nav)
     try {
       const src2 =
         window.ytplayer?.bootstrapPlayerResponse?.captions
@@ -41,18 +48,11 @@
       // ignore
     }
 
-    // Source 3: Try to find it from the movie_player element
-    try {
-      const player = document.getElementById("movie_player");
-      if (player?.getPlayerResponse) {
-        const resp = player.getPlayerResponse();
-        const src3 =
-          resp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-        if (src3?.length) return src3;
-      }
-    } catch {
-      // ignore
-    }
+    // Source 3: ytInitialPlayerResponse (hard page load only, stale on SPA nav)
+    const src3 =
+      window.ytInitialPlayerResponse?.captions
+        ?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (src3?.length) return src3;
 
     return null;
   }
@@ -74,20 +74,52 @@
 
       if (!track?.baseUrl) return "";
 
-      const res = await fetch(track.baseUrl + "&fmt=json3");
-      if (!res.ok) return "";
+      // Try JSON3 format
+      let text = "";
+      try {
+        const url = new URL(track.baseUrl);
+        url.searchParams.set("fmt", "json3");
+        const res = await fetch(url.toString());
+        if (res.ok) {
+          const json = await res.json();
+          text = (json.events || [])
+            .filter((e) => e.segs)
+            .map((e) => e.segs.map((s) => s.utf8 ?? "").join(""))
+            .filter(Boolean)
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+      } catch {
+        // JSON3 failed — try XML
+      }
 
-      const json = await res.json();
-      const text = (json.events || [])
-        .filter((e) => e.segs)
-        .map((e) => e.segs.map((s) => s.utf8 ?? "").join(""))
-        .filter(Boolean)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
+      // XML fallback
+      if (!text) {
+        try {
+          const xmlUrl = new URL(track.baseUrl);
+          xmlUrl.searchParams.delete("fmt");
+          const xmlRes = await fetch(xmlUrl.toString());
+          if (xmlRes.ok) {
+            const xmlText = await xmlRes.text();
+            text = xmlText
+              .replace(/<[^>]+>/g, " ")
+              .replace(/&amp;/g, "&")
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/\s+/g, " ")
+              .trim();
+          }
+        } catch {
+          // XML also failed
+        }
+      }
+
       if (text) return text;
     } catch {
-      // fall through
+      // fall through to DOM fallback
     }
 
     // Fallback: DOM extraction (only if transcript panel is open)
@@ -146,6 +178,12 @@
    * Main data collection.
    */
   async function collectData() {
+    // Wait for movie_player to initialize if it's not ready yet
+    const playerEl = document.getElementById("movie_player");
+    if (!playerEl?.getPlayerResponse) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
     await ensureCommentsLoaded();
     const captions = await fetchCaptions();
     const comments = extractComments();
